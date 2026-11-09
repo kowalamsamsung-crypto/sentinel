@@ -1,0 +1,11 @@
+{
+  "appId": "pl.sentinel.app",
+  "appName": "SENTINEL",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

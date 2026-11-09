@@ -1,0 +1,16 @@
+{
+  "name": "DDMS Ratio - Kontrola Jakości",
+  "short_name": "DDMS Ratio",
+  "description": "Aplikacja inspektora QC do skanowania modułów DDMS i numerów seryjnych na linii produkcyjnej",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#14181C",
+  "theme_color": "#14181C",
+  "lang": "pl",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

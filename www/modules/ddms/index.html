@@ -1,0 +1,2626 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>DDMS Ratio</title>
+<meta name="description" content="Aplikacja QC do skanowania modułów DDMS i numerów seryjnych na linii produkcyjnej">
+<meta name="theme-color" content="#14181C">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DDMS Ratio">
+<style>
+/* ==========================================================================
+   DDMS Ratio — style.css
+   Motyw: przemysłowy / hala produkcyjna. Ciemne tło, akcent "safety yellow",
+   duże strefy dotykowe (obsługa w rękawiczkach), wysoki kontrast.
+   ========================================================================== */
+
+:root {
+  --bg-0: #0E1215;
+  --bg-1: #14181C;
+  --bg-2: #1E252B;
+  --bg-3: #272F36;
+  --line: #333D44;
+
+  --yellow: #FFC400;
+  --yellow-dim: #8A6E00;
+  --text-0: #F5F7F8;
+  --text-1: #B9C2C9;
+  --text-2: #7C8890;
+
+  --ok: #2ECC71;
+  --ok-bg: #163322;
+  --danger: #FF5252;
+  --danger-bg: #3A1818;
+  --info: #4FC3F7;
+
+  --radius-l: 20px;
+  --radius-m: 14px;
+  --radius-s: 8px;
+
+  --tap-min: 64px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: Roboto, -apple-system, "Segoe UI", Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.4;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+button, input, textarea {
+  font-family: inherit;
+}
+
+/* ---------- Pasek górny ---------- */
+.topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(10px + var(--safe-top)) 14px 10px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line);
+  z-index: 20;
+}
+
+.topbar .icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-s);
+  border: none;
+  background: var(--bg-2);
+  color: var(--text-0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex: 0 0 auto;
+}
+.topbar .icon-btn:active { background: var(--bg-3); }
+
+.topbar .brand {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.topbar .brand .title {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.3px;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .brand .subtitle {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shift-counter {
+  flex: 0 0 auto;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 15px;
+}
+.shift-counter .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok);
+  flex: 0 0 auto;
+}
+
+/* ---------- Wskaźnik kroków ---------- */
+.steps {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 0;
+  background: var(--bg-1);
+}
+.step-pip {
+  flex: 1 1 0;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg-3);
+}
+.step-pip.done { background: var(--ok); }
+.step-pip.active { background: var(--yellow); }
+
+/* ---------- Widoki (ekrany) ---------- */
+.view {
+  display: none;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+.view.active { display: flex; }
+
+/* ---------- Ekran skanera ---------- */
+.scan-wrap {
+  flex: 1 1 auto;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.qr-reader-el, .qr-reader-el video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+.qr-reader-el {
+  position: absolute;
+  inset: 0;
+}
+.qr-reader-el img { display: none !important; } /* ukryj domyślny link html5-qrcode */
+
+.scan-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scan-frame {
+  width: 78%;
+  max-width: 420px;
+  aspect-ratio: 1 / 1;
+  position: relative;
+}
+.scan-frame.wide { aspect-ratio: 16 / 9; max-width: 480px; }
+.scan-frame .corner {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  border-color: var(--yellow);
+  border-style: solid;
+  border-width: 0;
+}
+.scan-frame .corner.tl { top: 0; left: 0; border-top-width: 6px; border-left-width: 6px; border-top-left-radius: 10px; }
+.scan-frame .corner.tr { top: 0; right: 0; border-top-width: 6px; border-right-width: 6px; border-top-right-radius: 10px; }
+.scan-frame .corner.bl { bottom: 0; left: 0; border-bottom-width: 6px; border-left-width: 6px; border-bottom-left-radius: 10px; }
+.scan-frame .corner.br { bottom: 0; right: 0; border-bottom-width: 6px; border-right-width: 6px; border-bottom-right-radius: 10px; }
+
+.scan-laser {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--yellow), transparent);
+  top: 10%;
+  animation: laserMove 2.1s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--yellow);
+}
+@keyframes laserMove {
+  0% { top: 8%; }
+  50% { top: 88%; }
+  100% { top: 8%; }
+}
+
+/* Dopóki użytkownik nie dotknie przycisku "Skanuj", kamera jeszcze nie
+   działa — zatrzymujemy animację lasera i przygaszamy ramkę, żeby ekran
+   nie sugerował, że skanowanie już trwa. */
+.scan-overlay.idle .scan-laser {
+  animation-play-state: paused;
+  opacity: 0;
+}
+.scan-overlay.idle .corner {
+  opacity: 0.35;
+}
+
+.scan-status {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  background: rgba(14,18,21,0.85);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 10px 14px;
+  text-align: center;
+  pointer-events: none;
+}
+.scan-status .label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--yellow);
+  font-weight: 700;
+}
+.scan-status .value {
+  font-size: 15px;
+  color: var(--text-0);
+  margin-top: 2px;
+}
+
+.scan-captured-chip {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
+  background: var(--ok-bg);
+  border: 1px solid var(--ok);
+  border-radius: var(--radius-m);
+  padding: 10px 14px;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.scan-captured-chip.show { display: flex; }
+.scan-captured-chip .mark {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--ok); color: #06210f;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; flex: 0 0 auto;
+}
+.scan-captured-chip .text { min-width: 0; }
+.scan-captured-chip .text .t1 { font-size: 11px; color: var(--text-1); text-transform: uppercase; letter-spacing: .5px; }
+.scan-captured-chip .text .t2 { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Pasek dolny akcji ---------- */
+.action-bar {
+  flex: 0 0 auto;
+  padding: 14px 14px calc(14px + var(--safe-bottom));
+  background: var(--bg-1);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.action-row { display: flex; gap: 10px; }
+.action-row > * { flex: 1 1 0; }
+
+/* ---------- Przyciski ---------- */
+.btn {
+  min-height: var(--tap-min);
+  border: none;
+  border-radius: var(--radius-m);
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.btn:active { transform: scale(0.98); }
+.btn[disabled] { opacity: 0.45; pointer-events: none; }
+
+.btn-primary { background: var(--yellow); color: #1a1400; }
+.btn-secondary { background: var(--bg-2); color: var(--text-0); border: 1px solid var(--line); }
+.btn-ghost { background: transparent; color: var(--text-1); border: 1px dashed var(--line); }
+.btn-success { background: var(--ok); color: #06210f; }
+.btn-danger { background: var(--danger); color: #2a0a0a; }
+.btn-block { width: 100%; }
+.btn-lg { min-height: 72px; font-size: 20px; }
+.btn-sm { min-height: 44px; font-size: 14px; padding: 8px 12px; }
+
+.icon-circle-btn {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(30,37,43,0.9);
+  color: var(--text-0);
+  font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.icon-circle-btn.on { background: var(--yellow); color: #1a1400; border-color: var(--yellow); }
+
+.hint-link {
+  text-align: center;
+  color: var(--info);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px;
+  background: none;
+  border: none;
+}
+
+/* ---------- Ekran zdjęcia ---------- */
+.photo-wrap {
+  flex: 1 1 auto;
+  position: relative;
+  background: #000;
+  min-height: 0;
+  overflow: hidden;
+}
+#photo-video, #photo-canvas, #photo-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#photo-canvas { display: none; }
+#photo-preview { display: none; object-fit: contain; background: #000; }
+
+.photo-controls {
+  position: absolute;
+  bottom: 18px;
+  left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+.shutter-btn {
+  width: 78px; height: 78px;
+  border-radius: 50%;
+  background: #fff;
+  border: 6px solid rgba(255,255,255,0.35);
+}
+.shutter-btn:active { background: var(--yellow); }
+
+.photo-topcontrols {
+  position: absolute;
+  top: 14px; right: 14px;
+  display: flex; gap: 10px;
+}
+
+/* ---------- Ekran podsumowania / zapisu ---------- */
+.review-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px;
+}
+.review-photo {
+  width: 100%;
+  border-radius: var(--radius-l);
+  overflow: hidden;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  aspect-ratio: 4/3;
+}
+.review-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.data-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 14px 16px;
+  margin-top: 14px;
+}
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 10px;
+}
+.data-row:last-child { border-bottom: none; }
+.data-row .k { color: var(--text-2); font-size: 13px; text-transform: uppercase; letter-spacing: .5px; flex: 0 0 auto;}
+.data-row .v { font-weight: 700; font-size: 16px; text-align: right; word-break: break-all; }
+
+.status-toggle {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.status-opt {
+  flex: 1 1 0;
+  min-height: 64px;
+  border-radius: var(--radius-m);
+  border: 2px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text-1);
+  font-weight: 800;
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.status-opt.selected.ok { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.status-opt.selected.defekt { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+.status-opt.selected.neutral { border-color: var(--yellow); background: rgba(255,196,0,0.12); color: var(--yellow); }
+
+.note-input {
+  width: 100%;
+  margin-top: 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  color: var(--text-0);
+  padding: 12px;
+  font-size: 15px;
+  min-height: 56px;
+  resize: vertical;
+}
+
+/* ---------- Toast / banner zapisu ---------- */
+.toast {
+  position: fixed;
+  left: 14px; right: 14px;
+  bottom: calc(14px + var(--safe-bottom));
+  background: var(--ok-bg);
+  border: 1px solid var(--ok);
+  color: var(--text-0);
+  padding: 14px 16px;
+  border-radius: var(--radius-m);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 60;
+  transform: translateY(140%);
+  transition: transform .25s ease;
+  font-weight: 700;
+}
+.toast.show { transform: translateY(0); }
+.toast.error { background: var(--danger-bg); border-color: var(--danger); }
+
+/* ---------- Drawer (menu boczne) ---------- */
+.drawer-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.drawer-backdrop.show { opacity: 1; pointer-events: auto; }
+
+.drawer {
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: 84%;
+  max-width: 340px;
+  background: var(--bg-1);
+  border-right: 1px solid var(--line);
+  z-index: 50;
+  transform: translateX(-105%);
+  transition: transform .22s ease;
+  display: flex;
+  flex-direction: column;
+  padding: calc(16px + var(--safe-top)) 16px 16px;
+  overflow-y: auto;
+}
+.drawer.show { transform: translateX(0); }
+
+.drawer h2 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+.drawer .drawer-sub {
+  color: var(--text-2);
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.drawer-stats {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 16px;
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+  margin-bottom: 18px;
+}
+.drawer-stats .stat .num { font-size: 26px; font-weight: 800; }
+.drawer-stats .stat.ok .num { color: var(--ok); }
+.drawer-stats .stat.defekt .num { color: var(--danger); }
+.drawer-stats .stat .lbl { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .5px; }
+
+.drawer-menu { display: flex; flex-direction: column; gap: 10px; }
+.drawer-menu .btn { justify-content: flex-start; }
+
+.drawer-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  font-size: 12px;
+  color: var(--text-2);
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+/* ---------- Lista zapisanych skanów ---------- */
+.list-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+}
+.list-item {
+  display: flex;
+  gap: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 10px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+.list-item .thumb {
+  width: 60px; height: 60px;
+  border-radius: var(--radius-s);
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: var(--bg-3);
+}
+.list-item .info { flex: 1 1 auto; min-width: 0; }
+.list-item .info .sn { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item .info .ddms { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item .info .meta { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+.list-item .badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.list-item .badge.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+.list-item .badge.defekt { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+.list-item .del-btn {
+  flex: 0 0 auto;
+  width: 40px; height: 40px;
+  border-radius: var(--radius-s);
+  background: var(--bg-3);
+  border: none;
+  color: var(--danger);
+  font-size: 18px;
+}
+
+.empty-state {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--text-2);
+  gap: 10px;
+}
+.empty-state .big-icon { font-size: 52px; opacity: 0.6; }
+
+/* ---------- Modal (wejście ręczne / ustawienia / potwierdzenia) ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 70;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+.modal-backdrop.show { display: flex; }
+.modal-sheet {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-top-left-radius: var(--radius-l);
+  border-top-right-radius: var(--radius-l);
+  width: 100%;
+  max-width: 560px;
+  padding: 20px 18px calc(20px + var(--safe-bottom));
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.modal-backdrop.center { align-items: center; padding: 20px; }
+.modal-backdrop.center .modal-sheet { border-radius: var(--radius-l); }
+
+.modal-sheet h3 { margin: 0 0 6px; font-size: 19px; }
+.modal-sheet p.desc { color: var(--text-1); font-size: 14px; margin: 0 0 16px; }
+
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.field input[type="text"] {
+  width: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  color: var(--text-0);
+  padding: 14px;
+  font-size: 18px;
+}
+.field input[type="text"]:focus { outline: 2px solid var(--yellow); }
+
+.modal-actions { display: flex; gap: 10px; margin-top: 6px; }
+.modal-actions > * { flex: 1 1 0; }
+
+/* ---------- Loader / spinner pełnoekranowy (eksport) ---------- */
+.fullscreen-loader {
+  position: fixed; inset: 0;
+  background: rgba(14,18,21,0.92);
+  z-index: 90;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  padding: 24px;
+}
+.fullscreen-loader.show { display: flex; }
+.spinner {
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  border: 5px solid var(--bg-3);
+  border-top-color: var(--yellow);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.fullscreen-loader .msg { font-weight: 700; font-size: 16px; }
+.fullscreen-loader .sub { font-size: 13px; color: var(--text-2); }
+.progress-track {
+  width: 220px; height: 8px;
+  background: var(--bg-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--yellow);
+  transition: width .15s ease;
+}
+
+/* ---------- Banery statusu / błędów kamery ---------- */
+.inline-banner {
+  margin: 14px;
+  padding: 14px;
+  border-radius: var(--radius-m);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  font-size: 14px;
+}
+.inline-banner.warn {
+  background: #3a2f10;
+  border-color: var(--yellow);
+}
+
+.offline-pill {
+  position: fixed;
+  top: calc(8px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-2);
+  z-index: 80;
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+.offline-pill.show { display: flex; }
+.offline-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-2); }
+
+/* Scrollbar dyskretny */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+</style></head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== PASEK GÓRNY ===================== -->
+  <header class="topbar">
+    <button class="icon-btn" id="btn-menu" aria-label="Menu" title="Menu">&#9776;</button>
+    <div class="brand">
+      <div class="title">DDMS RATIO</div>
+      <div class="subtitle" id="header-subtitle">Krok 1 z 3 &middot; Skanuj moduł DDMS</div>
+    </div>
+    <div class="shift-counter" id="shift-counter" title="Skany w tej zmianie">
+      <span class="dot"></span>
+      <span id="shift-count-num">0</span>
+    </div>
+  </header>
+
+  <!-- Wskaźnik kroków (widoczny tylko w przepływie skanowania) -->
+  <div class="steps" id="steps-indicator">
+    <div class="step-pip active" data-step="1"></div>
+    <div class="step-pip" data-step="2"></div>
+    <div class="step-pip" data-step="3"></div>
+  </div>
+
+  <!-- ===================== WIDOK 1: SKAN DDMS ===================== -->
+  <section class="view active" id="view-scan-ddms">
+    <div class="scan-wrap">
+      <div id="qr-reader-ddms" class="qr-reader-el"></div>
+      <div class="scan-overlay idle" id="scan-overlay-ddms">
+        <div class="scan-frame">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="scan-laser"></div>
+        </div>
+      </div>
+      <div class="scan-status">
+        <div class="label">Krok 1 &middot; Moduł DDMS</div>
+        <div class="value" id="status-ddms-text">Skieruj aparat na kod QR modułu</div>
+      </div>
+      <div class="photo-topcontrols">
+        <button class="icon-circle-btn" id="torch-ddms" title="Latarka">&#128161;</button>
+      </div>
+    </div>
+    <div class="action-bar">
+      <div class="action-row">
+        <button class="btn btn-primary btn-block" id="btn-rescan-ddms">&#128247; Skanuj kod DDMS</button>
+      </div>
+      <button class="hint-link" id="btn-manual-ddms">Nie da się zeskanować? Wpisz kod ręcznie</button>
+    </div>
+  </section>
+
+  <!-- ===================== WIDOK 2: SKAN SN ===================== -->
+  <section class="view" id="view-scan-sn">
+    <div class="scan-wrap">
+      <div id="qr-reader-sn" class="qr-reader-el"></div>
+      <div class="scan-overlay idle" id="scan-overlay-sn">
+        <div class="scan-frame wide">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="scan-laser"></div>
+        </div>
+      </div>
+      <div class="scan-status">
+        <div class="label">Krok 2 &middot; Numer seryjny pralki</div>
+        <div class="value" id="status-sn-text">Zeskanuj kod kreskowy z SN</div>
+      </div>
+      <div class="scan-captured-chip show" id="chip-ddms">
+        <div class="mark">&#10003;</div>
+        <div class="text">
+          <div class="t1">Moduł DDMS</div>
+          <div class="t2" id="chip-ddms-value">—</div>
+        </div>
+      </div>
+      <div class="photo-topcontrols">
+        <button class="icon-circle-btn" id="torch-sn" title="Latarka">&#128161;</button>
+      </div>
+    </div>
+    <div class="action-bar">
+      <div class="action-row">
+        <button class="btn btn-primary btn-block" id="btn-rescan-sn">&#128247; Skanuj numer SN</button>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-secondary" id="btn-back-to-ddms">&larr; Wstecz</button>
+        <button class="btn btn-ghost" id="btn-manual-sn">Wpisz SN ręcznie</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== WIDOK 3: ZDJĘCIE ===================== -->
+  <section class="view" id="view-photo">
+    <div class="photo-wrap">
+      <video id="photo-video" autoplay playsinline muted></video>
+      <canvas id="photo-canvas"></canvas>
+      <img id="photo-preview" alt="Podgląd zdjęcia">
+
+      <div class="scan-captured-chip show" id="chip-sn">
+        <div class="mark">&#10003;</div>
+        <div class="text">
+          <div class="t1">Numer seryjny</div>
+          <div class="t2" id="chip-sn-value">—</div>
+        </div>
+      </div>
+
+      <div class="photo-topcontrols">
+        <button class="icon-circle-btn" id="torch-photo" title="Latarka">&#128161;</button>
+      </div>
+
+      <div class="photo-controls" id="photo-controls-capture">
+        <button class="shutter-btn" id="btn-shutter" aria-label="Zrób zdjęcie"></button>
+      </div>
+    </div>
+    <div class="action-bar">
+      <div class="action-row" id="native-photo-row" style="display:none;">
+        <button class="btn btn-primary btn-block" id="btn-native-photo">&#128247; Otwórz aparat</button>
+      </div>
+      <button class="hint-link" id="btn-cancel-photo">Anuluj i wróć do skanowania</button>
+    </div>
+  </section>
+
+  <!-- ===================== WIDOK 4: PODSUMOWANIE / ZAPIS ===================== -->
+  <section class="view" id="view-review">
+    <div class="review-scroll">
+      <div class="review-photo">
+        <img id="review-photo-img" alt="Zdjęcie dokumentacyjne">
+      </div>
+
+      <div class="data-card">
+        <div class="data-row">
+          <span class="k">Kod DDMS</span>
+          <span class="v" id="review-ddms">—</span>
+        </div>
+        <div class="data-row">
+          <span class="k">Numer seryjny</span>
+          <span class="v" id="review-sn">—</span>
+        </div>
+        <div class="data-row">
+          <span class="k">Data i godzina</span>
+          <span class="v" id="review-time">—</span>
+        </div>
+      </div>
+
+      <div class="status-toggle">
+        <button class="status-opt selected ok" id="status-ok" data-status="OK">&#10003; OK</button>
+        <button class="status-opt defekt" id="status-defekt" data-status="DEFEKT">&#9888; Defekt</button>
+      </div>
+
+      <textarea class="note-input" id="review-note" placeholder="Uwaga / opis defektu (opcjonalnie)"></textarea>
+    </div>
+    <div class="action-bar">
+      <div class="action-row">
+        <button class="btn btn-secondary" id="btn-retake-photo">&#128247; Zdjęcie ponownie</button>
+        <button class="btn btn-primary btn-lg" id="btn-save-record">Zapisz i dalej &rarr;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== WIDOK 5: LISTA ZAPISANYCH SKANÓW ===================== -->
+  <section class="view" id="view-list">
+    <div class="action-bar" style="border-top:none;border-bottom:1px solid var(--line);padding-top:12px;">
+      <button class="btn btn-secondary" id="btn-list-back">&larr; Powrót do skanowania</button>
+    </div>
+    <div class="list-scroll" id="list-scroll">
+      <!-- generowane dynamicznie w app.js -->
+    </div>
+  </section>
+
+</div> <!-- /#app -->
+
+<!-- Toast potwierdzenia zapisu -->
+<div class="toast" id="toast">
+  <span>&#10003;</span>
+  <span id="toast-text">Zapisano skan</span>
+</div>
+
+<!-- Pigułka trybu offline -->
+<div class="offline-pill" id="offline-pill"><span class="dot"></span> Tryb offline</div>
+
+<!-- ===================== DRAWER / MENU BOCZNE ===================== -->
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
+<nav class="drawer" id="drawer">
+  <h2>DDMS Ratio</h2>
+  <div class="drawer-sub">Kontrola jakości &middot; moduły DDMS</div>
+
+  <div class="drawer-stats">
+    <div class="stat">
+      <div class="num" id="stat-total">0</div>
+      <div class="lbl">Wszystkie</div>
+    </div>
+    <div class="stat ok">
+      <div class="num" id="stat-ok">0</div>
+      <div class="lbl">OK</div>
+    </div>
+    <div class="stat defekt">
+      <div class="num" id="stat-defekt">0</div>
+      <div class="lbl">Defekt</div>
+    </div>
+  </div>
+
+  <div class="drawer-menu">
+    <button class="btn btn-secondary btn-block" id="menu-scan">&#128247; Nowe skanowanie</button>
+    <button class="btn btn-secondary btn-block" id="menu-list">&#128203; Lista zapisanych skanów</button>
+    <button class="btn btn-secondary btn-block" id="menu-settings">&#9881; Ustawienia zmiany</button>
+    <button class="btn btn-primary btn-block" id="menu-export">&#128190; Zakończ zmianę i generuj Excel</button>
+    <button class="btn btn-danger btn-block" id="menu-clear">&#128465; Wyczyść bazę</button>
+  </div>
+
+  <div class="drawer-footer">
+    Aplikacja działa w 100% offline.<br>
+    Dane przechowywane lokalnie na urządzeniu (IndexedDB).
+  </div>
+</nav>
+
+<!-- ===================== MODAL: WPIS RĘCZNY ===================== -->
+<div class="modal-backdrop" id="modal-manual">
+  <div class="modal-sheet">
+    <h3 id="modal-manual-title">Wpisz kod ręcznie</h3>
+    <p class="desc" id="modal-manual-desc">Użyj tej opcji, gdy kod jest uszkodzony lub nieczytelny dla skanera.</p>
+    <div class="field">
+      <label id="modal-manual-label">Kod</label>
+      <input type="text" id="modal-manual-input" autocomplete="off" autocapitalize="characters" placeholder="Wprowadź wartość...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-manual-cancel">Anuluj</button>
+      <button class="btn btn-primary" id="modal-manual-confirm">Zatwierdź</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: USTAWIENIA ZMIANY ===================== -->
+<div class="modal-backdrop" id="modal-settings">
+  <div class="modal-sheet">
+    <h3>Ustawienia zmiany</h3>
+    <p class="desc">Dane opcjonalne — zostaną dodane do nagłówka eksportowanego pliku Excel.</p>
+    <div class="field">
+      <label>Operator / Inspektor</label>
+      <input type="text" id="settings-operator" placeholder="np. Jan Kowalski">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-settings-cancel">Anuluj</button>
+      <button class="btn btn-primary" id="modal-settings-save">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: WYBÓR ZMIANY PRZY EKSPORCIE ===================== -->
+<div class="modal-backdrop center" id="modal-export">
+  <div class="modal-sheet">
+    <h3>Zakończ zmianę i eksportuj</h3>
+    <p class="desc" id="modal-export-desc">Zostanie wygenerowany plik Excel ze skanami.</p>
+    <div class="field">
+      <label>Do której zmiany zaliczyć ten eksport?</label>
+      <div class="status-toggle" id="export-shift-toggle">
+        <button type="button" class="status-opt neutral" id="export-shift-a" data-shift="A">Zmiana A</button>
+        <button type="button" class="status-opt neutral" id="export-shift-b" data-shift="B">Zmiana B</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-export-cancel">Anuluj</button>
+      <button class="btn btn-primary" id="modal-export-confirm">Generuj Excel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: POTWIERDZENIE (ogólny, wielokrotnego użytku) ===================== -->
+<div class="modal-backdrop center" id="modal-confirm">
+  <div class="modal-sheet">
+    <h3 id="modal-confirm-title">Potwierdź</h3>
+    <p class="desc" id="modal-confirm-desc">Czy na pewno chcesz kontynuować?</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-confirm-cancel">Anuluj</button>
+      <button class="btn btn-danger" id="modal-confirm-ok">Potwierdź</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PEŁNOEKRANOWY LOADER (eksport) ===================== -->
+<div class="fullscreen-loader" id="export-loader">
+  <div class="spinner"></div>
+  <div class="msg" id="export-loader-msg">Generowanie pliku Excel...</div>
+  <div class="progress-track"><div class="progress-fill" id="export-progress-fill"></div></div>
+  <div class="sub" id="export-loader-sub">Osadzanie zdjęć w arkuszu — to może chwilę potrwać</div>
+</div>
+
+<script src="html5-qrcode.min.js"></script>
+<script src="exceljs.min.js"></script>
+<script>
+/* ==========================================================================
+   DDMS Ratio — db.js
+   Lokalna baza danych w przeglądarce (IndexedDB).
+   Przechowuje: kod DDMS, numer seryjny, status, notatkę, zdjęcie (Blob)
+   oraz datę/godzinę skanu. Działa w 100% offline, bez żadnego serwera.
+   ========================================================================== */
+
+const DDMS_DB_NAME = 'ddmsRatioDB';
+const DDMS_DB_VERSION = 1;
+const DDMS_STORE = 'scans';
+
+const DdmsDB = (() => {
+
+  let dbPromise = null;
+
+  function open() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DDMS_DB_NAME, DDMS_DB_VERSION);
+
+      req.onupgradeneeded = (ev) => {
+        const db = ev.target.result;
+        if (!db.objectStoreNames.contains(DDMS_STORE)) {
+          const store = db.createObjectStore(DDMS_STORE, { keyPath: 'id', autoIncrement: true });
+          store.createIndex('serialNumber', 'serialNumber', { unique: false });
+          store.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+      };
+
+      req.onsuccess = (ev) => resolve(ev.target.result);
+      req.onerror = (ev) => reject(ev.target.error);
+    });
+    return dbPromise;
+  }
+
+  async function addScan(record) {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DDMS_STORE, 'readwrite');
+      const store = tx.objectStore(DDMS_STORE);
+      const req = store.add(record);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function getAll() {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DDMS_STORE, 'readonly');
+      const store = tx.objectStore(DDMS_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function count() {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DDMS_STORE, 'readonly');
+      const store = tx.objectStore(DDMS_STORE);
+      const req = store.count();
+      req.onsuccess = () => resolve(req.result || 0);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function deleteScan(id) {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DDMS_STORE, 'readwrite');
+      const store = tx.objectStore(DDMS_STORE);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function clearAll() {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DDMS_STORE, 'readwrite');
+      const store = tx.objectStore(DDMS_STORE);
+      const req = store.clear();
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function replaceAll(records) {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DDMS_STORE, 'readwrite');
+      const store = tx.objectStore(DDMS_STORE);
+      store.clear();
+      (Array.isArray(records) ? records : []).forEach(record => {
+        const copy = { ...record };
+        delete copy.id;
+        store.add(copy);
+      });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  async function findBySerialNumber(sn) {
+    const all = await getAll();
+    return all.filter(r => r.serialNumber === sn);
+  }
+
+  return { addScan, getAll, count, deleteScan, clearAll, replaceAll, findBySerialNumber };
+})();
+
+/* ==========================================================================
+   DDMS Ratio — scanner.js
+   Obsługa kamery: skanowanie kodów QR/kreskowych (biblioteka html5-qrcode,
+   dołączona lokalnie w libs/) oraz robienie zdjęć dokumentacyjnych
+   (HTML5 MediaDevices API). Wszystko po stronie klienta, bez serwera.
+   ========================================================================== */
+
+const DdmsScanner = (() => {
+
+  // Formaty obsługiwane przez skaner modułu DDMS: QR + najpopularniejsze
+  // kody kreskowe/2D, na wypadek gdyby moduł miał inny typ etykiety.
+  const SUPPORTED_FORMATS = [
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.DATA_MATRIX
+  ];
+
+  // Formaty dla skanera numeru seryjnego (krok 2): wyłącznie klasyczne,
+  // liniowe kody kreskowe — CELOWO bez QR_CODE i DATA_MATRIX, żeby skaner
+  // nie łapał przypadkiem kodu QR modułu DDMS, jeśli ten wciąż jest widoczny
+  // w kadrze tuż po poprzednim skanie.
+  const BARCODE_ONLY_FORMATS = [
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODABAR
+  ];
+
+  let activeHtml5QrCode = null;   // aktualna instancja skanera kodów
+  let activeElementId = null;
+  let photoStream = null;        // strumień kamery dla ekranu zdjęcia
+
+  /**
+   * Uruchamia skaner kodów w podanym elemencie DOM.
+   * onDetected(decodedText) wywoływane po udanym odczycie (skaner jest
+   * wtedy automatycznie wstrzymywany, by uniknąć wielokrotnych odczytów).
+   * @param {string[]} [formatsOverride] - lista formatów do rozpoznawania;
+   *   domyślnie SUPPORTED_FORMATS (QR + kody kreskowe). Przekaż
+   *   BARCODE_ONLY_FORMATS, żeby skaner ignorował kody QR.
+   */
+  async function startCodeScanner(elementId, onDetected, onError, formatsOverride) {
+    await stopCodeScanner(); // upewnij się, że poprzednia instancja jest zatrzymana
+
+    const html5QrCode = new Html5Qrcode(elementId, {
+      formatsToSupport: formatsOverride || SUPPORTED_FORMATS,
+      verbose: false
+    });
+    activeHtml5QrCode = html5QrCode;
+    activeElementId = elementId;
+
+    let locked = false;
+
+    // Domyślnie przeglądarka/biblioteka potrafi uruchomić kamerę w bardzo
+    // niskiej rozdzielczości (np. 640x480), co pogarsza zarówno wygląd
+    // podglądu, jak i skuteczność odczytu gęstych kodów QR / kodów
+    // kreskowych z małą odległością między kreskami. Jawnie prosimy więc o
+    // wysoką rozdzielczość oraz ciągły autofocus (telefon sam decyduje, czy
+    // je obsłuży — to tylko preferencja, nieobsługiwane pola są ignorowane).
+    const videoConstraints = {
+      facingMode: { ideal: 'environment' },
+      width: { min: 640, ideal: 1920, max: 1920 },
+      height: { min: 480, ideal: 1080, max: 1080 },
+      advanced: [{ focusMode: 'continuous' }]
+    };
+
+    const config = {
+      fps: 15,
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+        const size = Math.floor(minEdge * 0.78);
+        return { width: size, height: size };
+      },
+      aspectRatio: 1.0,
+      disableFlip: false,
+      videoConstraints: videoConstraints
+    };
+
+    try {
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        config,
+        (decodedText) => {
+          if (locked) return;
+          locked = true;
+          onDetected(decodedText);
+        },
+        () => { /* błędy "nie znaleziono kodu w klatce" — ignorujemy, to normalne */ }
+      );
+      return html5QrCode;
+    } catch (err) {
+      // Jeśli telefon odrzuci żądaną rozdzielczość (rzadkie, ale zdarza się
+      // na starszych urządzeniach), spróbuj ponownie bez twardych wymagań
+      // co do rozdzielczości, żeby kamera w ogóle wystartowała.
+      try {
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          {
+            fps: config.fps,
+            qrbox: config.qrbox,
+            aspectRatio: config.aspectRatio,
+            disableFlip: config.disableFlip
+          },
+          (decodedText) => {
+            if (locked) return;
+            locked = true;
+            onDetected(decodedText);
+          },
+          () => {}
+        );
+        return html5QrCode;
+      } catch (err2) {
+        activeHtml5QrCode = null;
+        activeElementId = null;
+        if (onError) onError(err2);
+        throw err2;
+      }
+    }
+  }
+
+  async function stopCodeScanner() {
+    if (activeHtml5QrCode) {
+      try {
+        const state = activeHtml5QrCode.getState ? activeHtml5QrCode.getState() : null;
+        if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
+          await activeHtml5QrCode.stop();
+        }
+      } catch (e) { /* ignoruj — kamera mogła już zostać zwolniona */ }
+      try { activeHtml5QrCode.clear(); } catch (e) { /* noop */ }
+      activeHtml5QrCode = null;
+      activeElementId = null;
+    }
+  }
+
+  async function toggleTorch(forceState) {
+    if (!activeHtml5QrCode) return false;
+    try {
+      const caps = activeHtml5QrCode.getRunningTrackCapabilities();
+      if (!caps || !caps.torch) return false;
+      const settings = activeHtml5QrCode.getRunningTrackSettings
+        ? activeHtml5QrCode.getRunningTrackSettings()
+        : {};
+      const next = typeof forceState === 'boolean' ? forceState : !(settings && settings.torch);
+      await activeHtml5QrCode.applyVideoConstraints({ advanced: [{ torch: next }] });
+      return next;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function isTorchAvailable() {
+    if (!activeHtml5QrCode) return false;
+    try {
+      const caps = activeHtml5QrCode.getRunningTrackCapabilities();
+      return !!(caps && caps.torch);
+    } catch (e) { return false; }
+  }
+
+  /* ----------------------------------------------------------------------
+     Ekran zdjęcia: osobny, prosty strumień wideo (bez dekodowania kodów),
+     by zminimalizować obciążenie i umożliwić przechwycenie klatki na canvas.
+     ---------------------------------------------------------------------- */
+
+  async function startPhotoStream(videoElement) {
+    await stopPhotoStream();
+    const constraints = {
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        advanced: [{ focusMode: 'continuous' }]
+      }
+    };
+    photoStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoElement.srcObject = photoStream;
+    await videoElement.play().catch(() => {});
+    return photoStream;
+  }
+
+  async function stopPhotoStream() {
+    if (photoStream) {
+      photoStream.getTracks().forEach(t => t.stop());
+      photoStream = null;
+    }
+  }
+
+  async function togglePhotoTorch(forceState) {
+    if (!photoStream) return false;
+    const track = photoStream.getVideoTracks()[0];
+    if (!track) return false;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.torch) return false;
+    const settings = track.getSettings ? track.getSettings() : {};
+    const next = typeof forceState === 'boolean' ? forceState : !(settings && settings.torch);
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next }] });
+      return next;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function isPhotoTorchAvailable() {
+    if (!photoStream) return false;
+    const track = photoStream.getVideoTracks()[0];
+    if (!track || !track.getCapabilities) return false;
+    const caps = track.getCapabilities();
+    return !!caps.torch;
+  }
+
+  /**
+   * Przechwytuje bieżącą klatkę wideo i zwraca Blob (image/jpeg).
+   */
+  function capturePhoto(videoElement, canvasElement, quality) {
+    const w = videoElement.videoWidth || 1280;
+    const h = videoElement.videoHeight || 720;
+    canvasElement.width = w;
+    canvasElement.height = h;
+    const ctx = canvasElement.getContext('2d');
+    ctx.drawImage(videoElement, 0, 0, w, h);
+    return new Promise((resolve) => {
+      canvasElement.toBlob((blob) => resolve(blob), 'image/jpeg', quality || 0.85);
+    });
+  }
+
+  return {
+    startCodeScanner,
+    stopCodeScanner,
+    toggleTorch,
+    isTorchAvailable,
+    startPhotoStream,
+    stopPhotoStream,
+    togglePhotoTorch,
+    isPhotoTorchAvailable,
+    capturePhoto,
+    BARCODE_ONLY_FORMATS
+  };
+})();
+
+/* ==========================================================================
+   DDMS Ratio — export.js
+   Generowanie pliku .xlsx (ExcelJS, w 100% po stronie klienta) z listą
+   wszystkich skanów bieżącej zmiany wraz ze zdjęciami osadzonymi
+   bezpośrednio w komórkach arkusza.
+   ========================================================================== */
+
+const DdmsExport = (() => {
+
+  // Rozmiar zdjęcia w komórce Excela (px przy 96 dpi).
+  const PHOTO_CELL_WIDTH_PX = 220;
+  const PHOTO_CELL_HEIGHT_PX = 165;
+
+  // Zdjęcia z aparatu (8–12 Mpx) są wbudowywane w xlsx w całości, więc plik
+  // puchnie. Skalujemy do max 1200 px na dłuższym boku (wystarczy do
+  // czytelnego podglądu i wydruku A4) i kodujemy JPEG 0.82.
+  const EXPORT_PHOTO_MAX_PX = 1200;
+  const EXPORT_PHOTO_QUALITY = 0.82;
+
+  function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /**
+   * Skaluje zdjęcie do EXPORT_PHOTO_MAX_PX na dłuższym boku (zachowując
+   * proporcje) i zwraca data-URL JPEG gotowy do wstawienia do ExcelJS.
+   */
+  function resizePhotoForExport(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        const maxPx = EXPORT_PHOTO_MAX_PX;
+        if (w > maxPx || h > maxPx) {
+          if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+          else        { w = Math.round(w * maxPx / h); h = maxPx; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', EXPORT_PHOTO_QUALITY));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('resize failed')); };
+      img.src = url;
+    });
+  }
+
+  function pad(n) { return n.toString().padStart(2, '0'); }
+
+  function formatDateTime(d) {
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  function buildFilename(d) {
+    return `DDMS_Ratio_Export_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.xlsx`;
+  }
+
+  /**
+   * records: tablica obiektów z bazy (DdmsDB.getAll()), posortowana rosnąco wg czasu.
+   * meta: { operator, line }
+   * onProgress(fraction 0..1, label)
+   */
+  async function exportShiftToExcel(records, meta, onProgress) {
+    meta = meta || {};
+    const progress = (f, label) => { if (onProgress) onProgress(f, label); };
+
+    progress(0.02, 'Przygotowywanie arkusza...');
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'DDMS Ratio';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Raport zmiany', {
+      views: [{ state: 'frozen', ySplit: 6 }]
+    });
+
+    // ---- Nagłówek raportu ----
+    sheet.mergeCells('A1:G1');
+    sheet.getCell('A1').value = 'DDMS Ratio — Raport kontroli jakości';
+    sheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FF14181C' } };
+
+    const now = new Date();
+    sheet.getCell('A2').value = 'Data eksportu:';
+    sheet.getCell('B2').value = formatDateTime(now);
+    sheet.getCell('A3').value = 'Operator:';
+    sheet.getCell('B3').value = meta.operator || '—';
+    sheet.getCell('A4').value = 'Zmiana:';
+    sheet.getCell('B4').value = meta.shift ? ('Zmiana ' + meta.shift) : '—';
+
+    const okCount = records.filter(r => r.status === 'OK').length;
+    const defCount = records.filter(r => r.status === 'DEFEKT').length;
+    sheet.getCell('D2').value = 'Łącznie skanów:';
+    sheet.getCell('E2').value = records.length;
+    sheet.getCell('D3').value = 'OK:';
+    sheet.getCell('E3').value = okCount;
+    sheet.getCell('D4').value = 'Defekt:';
+    sheet.getCell('E4').value = defCount;
+    ['A2', 'A3', 'A4', 'D2', 'D3', 'D4'].forEach(addr => {
+      sheet.getCell(addr).font = { bold: true, color: { argb: 'FF555555' } };
+    });
+
+    // ---- Nagłówki tabeli (wiersz 6) ----
+    const headerRow = 6;
+    const headers = ['Lp.', 'Kod modułu DDMS', 'Numer seryjny pralki', 'Status', 'Data i godzina skanu', 'Uwagi', 'Zdjęcie dokumentacyjne'];
+    headers.forEach((text, idx) => {
+      const cell = sheet.getCell(headerRow, idx + 1);
+      cell.value = text;
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF272F36' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    });
+    sheet.getRow(headerRow).height = 22;
+
+    sheet.columns = [
+      { width: 6 },   // Lp.
+      { width: 20 },  // DDMS
+      { width: 22 },  // SN
+      { width: 12 },  // Status
+      { width: 20 },  // Data
+      { width: 28 },  // Uwagi
+      { width: 33 }   // Zdjęcie (~220 px)
+    ];
+
+    // ---- Wiersze danych ----
+    const total = records.length || 1;
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i];
+      const rowNumber = headerRow + 1 + i;
+      const row = sheet.getRow(rowNumber);
+
+      row.getCell(1).value = i + 1;
+      row.getCell(2).value = rec.ddmsCode || '';
+      row.getCell(3).value = rec.serialNumber || '';
+      row.getCell(4).value = rec.status === 'DEFEKT' ? 'DEFEKT' : 'OK';
+      row.getCell(5).value = rec.timestamp ? formatDateTime(new Date(rec.timestamp)) : '';
+      row.getCell(6).value = rec.note || '';
+
+      const statusCell = row.getCell(4);
+      statusCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      statusCell.font = { bold: true, color: { argb: rec.status === 'DEFEKT' ? 'FFB00020' : 'FF1B7A3D' } };
+      statusCell.fill = {
+        type: 'pattern', pattern: 'solid',
+        fgColor: { argb: rec.status === 'DEFEKT' ? 'FFFCE4E4' : 'FFE3F6E8' }
+      };
+
+      for (let c = 1; c <= 6; c++) {
+        row.getCell(c).alignment = Object.assign({ vertical: 'middle' }, row.getCell(c).alignment || {});
+      }
+
+      row.height = Math.ceil(PHOTO_CELL_HEIGHT_PX * 0.75); // px -> pkt (przybliżenie)
+
+      // Osadzenie zdjęcia
+      if (rec.photoBlob) {
+        try {
+          const dataUrl = await resizePhotoForExport(rec.photoBlob);
+          const imageId = workbook.addImage({ base64: dataUrl, extension: 'jpeg' });
+          sheet.addImage(imageId, {
+            tl: { col: 6, row: rowNumber - 1 },
+            ext: { width: PHOTO_CELL_WIDTH_PX, height: PHOTO_CELL_HEIGHT_PX },
+            editAs: 'oneCell'
+          });
+        } catch (e) {
+          row.getCell(7).value = '(błąd wczytywania zdjęcia)';
+        }
+      } else {
+        row.getCell(7).value = '(brak zdjęcia)';
+      }
+
+      progress(0.05 + 0.80 * ((i + 1) / total), `Osadzanie zdjęć: ${i + 1} / ${records.length}`);
+    }
+
+    // Obramowania tabeli
+    const lastRow = headerRow + records.length;
+    for (let r = headerRow; r <= lastRow; r++) {
+      for (let c = 1; c <= 7; c++) {
+        sheet.getCell(r, c).border = {
+          top: { style: 'thin', color: { argb: 'FFDADFE3' } },
+          left: { style: 'thin', color: { argb: 'FFDADFE3' } },
+          bottom: { style: 'thin', color: { argb: 'FFDADFE3' } },
+          right: { style: 'thin', color: { argb: 'FFDADFE3' } }
+        };
+      }
+    }
+
+    progress(0.90, 'Zapisywanie pliku Excel...');
+    const buffer = await workbook.xlsx.writeBuffer();
+    progress(0.98, 'Finalizowanie...');
+
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const filename = buildFilename(now);
+
+    progress(1, 'Gotowe');
+    return { blob, filename };
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // reader.result is a data: URL — strip the "data:...;base64," prefix,
+        // Capacitor's Filesystem plugin wants the raw base64 payload only.
+        const commaIdx = reader.result.indexOf(',');
+        resolve(reader.result.slice(commaIdx + 1));
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function nativeCapacitor() {
+    try { return window.Capacitor || (window.parent && window.parent.Capacitor) || null; }
+    catch (e) { return window.Capacitor || null; }
+  }
+
+  function isNativeApp() {
+    const cap = nativeCapacitor();
+    return !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  }
+
+  function hasNativeSaveDialog() {
+    return !!(window.AndroidSaveFile && window.AndroidSaveFile.saveFile);
+  }
+
+  /**
+   * Wywołuje natywne okno systemowe Androida "Zapisz jako" (Storage Access
+   * Framework), w którym użytkownik sam wybiera folder i nazwę pliku —
+   * dokładnie tak jak przy zapisywaniu pliku z poziomu dowolnej aplikacji
+   * systemowej. Most do kodu natywnego: android-patches/MainActivity.java
+   * (interfejs JS "AndroidSaveFile").
+   */
+  function saveViaNativeDialog(base64Data, filename, mimeType) {
+    return new Promise((resolve, reject) => {
+      window.__ddmsSaveFileResolve = (uri) => resolve(uri);
+      window.__ddmsSaveFileReject = (reason) => reject(new Error(reason || 'Zapis anulowany'));
+      try {
+        window.AndroidSaveFile.saveFile(base64Data, filename, mimeType);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  /**
+   * Zapisuje plik. Kolejność prób:
+   * 1. W spakowanej aplikacji Android (APK) — natywne okno systemowe
+   *    "Zapisz jako", w którym inspektor sam wybiera folder (np. Pobrane,
+   *    Dysk Google, karta SD) i nazwę pliku.
+   * 2. Jeśli natywny most z jakiegoś powodu niedostępny — zapis przez
+   *    wtyczkę Capacitor Filesystem + natywne okno Udostępnij.
+   * 3. W zwykłej przeglądarce (GitHub Pages, testy) — zwykły link
+   *    <a download>, czyli standardowe pobranie do folderu Pobrane.
+   */
+  async function downloadBlob(blob, filename) {
+    const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    if (isNativeApp() && hasNativeSaveDialog()) {
+      try {
+        const base64Data = await blobToBase64(blob);
+        await saveViaNativeDialog(base64Data, filename, mimeType);
+        return;
+      } catch (e) {
+        console.error('Natywne okno "Zapisz jako" nie powiodło się lub zostało anulowane, próbuję zapisu przez Filesystem/Share:', e);
+        // spada do mechanizmu Filesystem + Share poniżej
+      }
+    }
+
+    if (isNativeApp()) {
+      try {
+        const cap = nativeCapacitor();
+        const { Filesystem, Directory } = cap.Plugins;
+        const { Share } = cap.Plugins;
+        const base64Data = await blobToBase64(blob);
+
+        const result = await Filesystem.writeFile({
+          path: filename,
+          data: base64Data,
+          directory: Directory ? Directory.Documents : 'DOCUMENTS',
+          recursive: true
+        });
+
+        if (Share && Share.share) {
+          await Share.share({
+            title: filename,
+            text: 'Raport DDMS Ratio',
+            url: result.uri,
+            dialogTitle: 'Zapisz lub wyślij plik Excel'
+          });
+        }
+        return;
+      } catch (e) {
+        console.error('Zapis przez Capacitor Filesystem/Share nie powiódł się, próbuję zwykłego pobrania:', e);
+        // spada do zwykłej metody przeglądarkowej poniżej
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 2000);
+  }
+
+  return { exportShiftToExcel, downloadBlob };
+})();
+
+/* ==========================================================================
+   DDMS Ratio — app.js
+   Główna logika aplikacji: przełączanie ekranów, obsługa przepływu
+   skanowania (DDMS -> SN -> zdjęcie -> zapis), menu, eksport, ustawienia.
+   ========================================================================== */
+
+(() => {
+  'use strict';
+
+  // ------------------------------------------------------------------
+  // Elementy DOM
+  // ------------------------------------------------------------------
+  const el = (id) => document.getElementById(id);
+
+  const views = {
+    scanDdms: el('view-scan-ddms'),
+    scanSn: el('view-scan-sn'),
+    photo: el('view-photo'),
+    review: el('view-review'),
+    list: el('view-list')
+  };
+
+  const headerSubtitle = el('header-subtitle');
+  const stepsIndicator = el('steps-indicator');
+  const stepPips = Array.from(document.querySelectorAll('.step-pip'));
+  const shiftCountNum = el('shift-count-num');
+
+  const toastEl = el('toast');
+  const toastText = el('toast-text');
+
+  // ------------------------------------------------------------------
+  // Stan aplikacji
+  // ------------------------------------------------------------------
+  let currentView = null;
+  let currentRecord = { ddmsCode: null, serialNumber: null, photoBlob: null, status: 'OK', note: '' };
+  let reviewPhotoObjectUrl = null;
+  let listThumbUrls = [];
+
+  const SETTINGS_KEY = 'ddmsRatioSettings';
+
+  function loadSettings() {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveSettings(obj) {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj));
+  }
+
+  function vibrate(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  }
+
+  // Po udanym skanie następny skaner (zarówno natywny, jak i oparty na
+  // getUserMedia) potrafi uruchomić się tak szybko, że kamera wciąż "widzi"
+  // ten sam kod w kadrze i natychmiast go ponownie odczytuje (np. kod DDMS
+  // zostaje mylnie zapisany jako numer seryjny). Ta krótka pauza z
+  // wizualnym potwierdzeniem daje czas na odsunięcie telefonu od kodu,
+  // zanim kolejny skaner zacznie aktywnie dekodować.
+  const SCAN_COOLDOWN_MS = 1300;
+  function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+  // ------------------------------------------------------------------
+  // Natywny aparat i skaner (Capacitor) — zamiast podglądu z kamery
+  // renderowanego wewnątrz WebView (który ma gorszą jakość i autofocus
+  // niż systemowy aparat), w spakowanej aplikacji APK korzystamy z
+  // prawdziwych natywnych komponentów Androida:
+  //  - @capacitor-mlkit/barcode-scanning → pełnoekranowy natywny skaner
+  //    Google (ML Kit) do kroków 1 i 2 (DDMS, SN),
+  //  - @capacitor/camera → systemowa aplikacja aparatu do kroku 3 (zdjęcie).
+  // W zwykłej przeglądarce (GitHub Pages, testy) te wtyczki nie istnieją,
+  // więc aplikacja automatycznie korzysta z dotychczasowego mechanizmu
+  // opartego na getUserMedia (DdmsScanner) — nic nie trzeba przełączać
+  // ręcznie.
+  // ------------------------------------------------------------------
+  function capacitorHost() {
+    try { return window.Capacitor || (window.parent && window.parent.Capacitor) || null; }
+    catch (e) { return window.Capacitor || null; }
+  }
+
+  function isNativeAppShell() {
+    const cap = capacitorHost();
+    return !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  }
+
+  function hasNativeBarcodeScanner() {
+    const cap = capacitorHost();
+    return isNativeAppShell() && !!(cap && cap.Plugins && (cap.Plugins.BarcodeScanner || cap.Plugins.SentinelScanner));
+  }
+
+  function hasNativeCamera() {
+    const cap = capacitorHost();
+    return isNativeAppShell() && !!(cap && cap.Plugins && cap.Plugins.Camera);
+  }
+
+  /**
+   * Google zaleca sprawdzenie (i w razie potrzeby zainicjowanie instalacji)
+   * modułu skanera kodów kreskowych przez Usługi Google Play, zanim wywoła
+   * się scan(). Na większości telefonów moduł jest już obecny; jeśli nie —
+   * ta funkcja uruchamia jego instalację (wymaga chwili internetu, tylko
+   * raz) i ponownie sprawdza dostępność.
+   */
+  async function ensureGoogleBarcodeModule(BarcodeScanner) {
+    if (!BarcodeScanner.isGoogleBarcodeScannerModuleAvailable) return true;
+    try {
+      const first = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+      if (first && first.available) return true;
+
+      if (BarcodeScanner.installGoogleBarcodeScannerModule) {
+        await BarcodeScanner.installGoogleBarcodeScannerModule();
+      }
+
+      const second = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+      return !!(second && second.available);
+    } catch (e) {
+      console.error('Nie udało się sprawdzić/zainstalować modułu skanera Google:', e);
+      return false;
+    }
+  }
+
+  // Klasyczne, liniowe kody kreskowe — celowo BEZ kodów QR (i innych kodów
+  // dwuwymiarowych typu Data Matrix/Aztec), żeby skaner numeru seryjnego nie
+  // łapał przypadkiem kodu QR modułu DDMS, jeśli ten wciąż jest widoczny
+  // w kadrze.
+  const BARCODE_ONLY_FORMATS = [
+    'CODE_39', 'CODE_93', 'CODE_128', 'EAN_8', 'EAN_13', 'ITF', 'UPC_A', 'UPC_E', 'CODABAR'
+  ];
+
+  /**
+   * Uruchamia natywny, pełnoekranowy skaner Google (ML Kit) i zwraca
+   * zeskanowany tekst, albo null, jeśli użytkownik anulował.
+   * @param {string[]|null} formats - lista formatów do rozpoznawania (np.
+   *   tylko kody kreskowe); null/pominięte = wszystkie obsługiwane formaty.
+   */
+  async function nativeScanOnce(formats) {
+    const cap = capacitorHost();
+    const BarcodeScanner = cap.Plugins.BarcodeScanner;
+    if (!BarcodeScanner && cap.Plugins.SentinelScanner) {
+      const result = await cap.Plugins.SentinelScanner.scan();
+      return result && result.value ? result.value : null;
+    }
+
+    const moduleReady = await ensureGoogleBarcodeModule(BarcodeScanner);
+    if (!moduleReady) {
+      const err = new Error('Moduł skanera Google niedostępny');
+      err.code = 'google_scanner_module_unavailable';
+      throw err;
+    }
+
+    const options = (formats && formats.length) ? { formats } : undefined;
+    const result = await BarcodeScanner.scan(options);
+    if (result && Array.isArray(result.barcodes) && result.barcodes.length > 0) {
+      const first = result.barcodes[0];
+      return first.rawValue || first.displayValue || null;
+    }
+    return null;
+  }
+
+  /**
+   * Otwiera systemową aplikację aparatu i zwraca zrobione zdjęcie jako Blob
+   * (żeby reszta aplikacji — podgląd, zapis do IndexedDB, eksport do Excela —
+   * działała identycznie niezależnie od tego, skąd pochodzi zdjęcie).
+   */
+  async function nativeTakePhoto() {
+    const cap = capacitorHost();
+    const { Camera } = cap.Plugins;
+    const photo = await Camera.getPhoto({
+      resultType: 'uri',
+      source: 'CAMERA',
+      quality: 75,      // i tak skalujemy przed Excelem, nie ma sensu wyższa
+      saveToGallery: false,
+      correctOrientation: true,
+      allowEditing: false
+    });
+    const fileUrl = cap.convertFileSrc(photo.path || photo.webPath);
+    const response = await fetch(fileUrl);
+    return await response.blob();
+  }
+
+  async function triggerNativeScan(context) {
+    const overlayId = context === 'ddms' ? 'scan-overlay-ddms' : 'scan-overlay-sn';
+    // Krok 2 (SN) celowo ogranicza się do klasycznych kodów kreskowych —
+    // patrz komentarz przy BARCODE_ONLY_FORMATS powyżej.
+    const formats = context === 'sn' ? BARCODE_ONLY_FORMATS : undefined;
+    try {
+      const text = await nativeScanOnce(formats);
+      if (!text) {
+        el(overlayId).classList.add('idle'); // anulowano — wróć do stanu bezczynności, przycisk pozwoli spróbować ponownie
+        return;
+      }
+      if (context === 'ddms') await onDdmsDetected(text);
+      else if (context === 'sn') await onSnDetected(text);
+    } catch (e) {
+      console.error('Natywny skaner nie powiódł się:', e);
+      el(overlayId).classList.add('idle');
+      if (e && e.code === 'google_scanner_module_unavailable') {
+        showToast('Moduł skanera Google się instaluje — połącz na chwilę z internetem i spróbuj ponownie, albo wpisz kod ręcznie', true);
+      } else {
+        showToast('Nie udało się uruchomić skanera — spróbuj ponownie lub wpisz kod ręcznie', true);
+      }
+    }
+  }
+
+  async function triggerNativePhoto() {
+    try {
+      const blob = await nativeTakePhoto();
+      currentRecord.photoBlob = blob;
+      goToReview();
+    } catch (e) {
+      console.error('Natywny aparat nie powiódł się lub zdjęcie zostało anulowane:', e);
+      showToast('Anulowano robienie zdjęcia', true);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Przełączanie widoków
+  // ------------------------------------------------------------------
+  function showView(name) {
+    Object.values(views).forEach(v => v.classList.remove('active'));
+    views[name].classList.add('active');
+    currentView = name;
+
+    const showSteps = (name === 'scanDdms' || name === 'scanSn' || name === 'photo' || name === 'review');
+    stepsIndicator.style.display = showSteps ? 'flex' : 'none';
+
+    const stepMap = { scanDdms: 1, scanSn: 2, photo: 3, review: 3 };
+    if (showSteps) {
+      const s = stepMap[name];
+      stepPips.forEach((pip, idx) => {
+        const n = idx + 1;
+        pip.classList.toggle('active', n === s);
+        pip.classList.toggle('done', n < s);
+      });
+    }
+
+    const subtitles = {
+      scanDdms: 'Krok 1 z 3 &middot; Skanuj moduł DDMS',
+      scanSn: 'Krok 2 z 3 &middot; Skanuj numer seryjny',
+      photo: 'Krok 3 z 3 &middot; Zrób zdjęcie',
+      review: 'Krok 3 z 3 &middot; Sprawdź i zapisz',
+      list: 'Lista zapisanych skanów'
+    };
+    headerSubtitle.innerHTML = subtitles[name] || 'DDMS Ratio';
+  }
+
+  function showToast(message, isError) {
+    toastText.textContent = message;
+    toastEl.classList.toggle('error', !!isError);
+    toastEl.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toastEl.classList.remove('show'), 2600);
+  }
+
+  // ------------------------------------------------------------------
+  // Liczniki zmiany
+  // ------------------------------------------------------------------
+  async function refreshCounters() {
+    try {
+      const all = await DdmsDB.getAll();
+      shiftCountNum.textContent = all.length;
+      el('stat-total').textContent = all.length;
+      el('stat-ok').textContent = all.filter(r => r.status !== 'DEFEKT').length;
+      el('stat-defekt').textContent = all.filter(r => r.status === 'DEFEKT').length;
+      return all;
+    } catch (e) {
+      console.error('Błąd odczytu bazy:', e);
+      return [];
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // KROK 1 — Skan modułu DDMS
+  // ------------------------------------------------------------------
+  async function stopAllCamerasAndStreams() {
+    await DdmsScanner.stopCodeScanner().catch(() => {});
+    await DdmsScanner.stopPhotoStream().catch(() => {});
+  }
+
+  async function goToScanDdms() {
+    // Pokazuje ekran, ale NIE uruchamia kamery/skanera automatycznie —
+    // o tym decyduje teraz użytkownik, stukając przycisk "Skanuj kod DDMS".
+    // Dzięki temu to on kontroluje moment startu: ma czas odsunąć telefon
+    // od poprzedniego kodu, zanim nowy skaner zacznie aktywnie dekodować.
+    await stopAllCamerasAndStreams();
+    currentRecord = { ddmsCode: null, serialNumber: null, photoBlob: null, status: 'OK', note: '' };
+    showView('scanDdms');
+    el('status-ddms-text').textContent = 'Stuknij przycisk poniżej, aby rozpocząć skanowanie';
+    el('scan-overlay-ddms').classList.add('idle');
+    if (hasNativeBarcodeScanner()) {
+      el('torch-ddms').style.display = 'none'; // natywny skaner ma własną latarkę w swoim interfejsie
+    } else {
+      setTorchUI('torch-ddms', false, false);
+    }
+  }
+
+  async function startDdmsScan() {
+    el('scan-overlay-ddms').classList.remove('idle');
+    if (hasNativeBarcodeScanner()) {
+      triggerNativeScan('ddms');
+      return;
+    }
+
+    el('status-ddms-text').textContent = 'Skieruj aparat na kod QR modułu';
+    setTorchUI('torch-ddms', false, false);
+    try {
+      await DdmsScanner.startCodeScanner('qr-reader-ddms', onDdmsDetected, () => {
+        el('status-ddms-text').textContent = 'Brak dostępu do aparatu — użyj wpisu ręcznego poniżej';
+      });
+      setTorchUI('torch-ddms', DdmsScanner.isTorchAvailable(), false);
+    } catch (e) {
+      el('status-ddms-text').textContent = 'Brak dostępu do aparatu — użyj wpisu ręcznego poniżej';
+    }
+  }
+
+  async function onDdmsDetected(text) {
+    vibrate(80);
+    currentRecord.ddmsCode = text;
+    el('status-ddms-text').textContent = '✓ Zeskanowano: ' + text + ' — odsuń telefon od kodu...';
+    await sleep(SCAN_COOLDOWN_MS);
+    goToScanSn();
+  }
+
+  // ------------------------------------------------------------------
+  // KROK 2 — Skan numeru seryjnego
+  // ------------------------------------------------------------------
+  async function goToScanSn() {
+    // Jak w kroku 1 — ekran się pokazuje, ale skaner czeka na dotknięcie
+    // przycisku "Skanuj numer SN" przez użytkownika.
+    await DdmsScanner.stopCodeScanner().catch(() => {});
+    showView('scanSn');
+    el('chip-ddms-value').textContent = currentRecord.ddmsCode || '—';
+    el('status-sn-text').textContent = 'Stuknij przycisk poniżej, aby rozpocząć skanowanie';
+    el('scan-overlay-sn').classList.add('idle');
+    if (hasNativeBarcodeScanner()) {
+      el('torch-sn').style.display = 'none';
+    } else {
+      setTorchUI('torch-sn', false, false);
+    }
+  }
+
+  async function startSnScan() {
+    el('scan-overlay-sn').classList.remove('idle');
+    if (hasNativeBarcodeScanner()) {
+      triggerNativeScan('sn');
+      return;
+    }
+
+    el('status-sn-text').textContent = 'Zeskanuj kod kreskowy z SN';
+    setTorchUI('torch-sn', false, false);
+    try {
+      // Celowo tylko kody kreskowe (BARCODE_ONLY_FORMATS) — żeby skaner nie
+      // złapał przypadkiem kodu QR modułu DDMS, gdyby wciąż był w kadrze.
+      await DdmsScanner.startCodeScanner('qr-reader-sn', onSnDetected, () => {
+        el('status-sn-text').textContent = 'Brak dostępu do aparatu — użyj wpisu ręcznego';
+      }, DdmsScanner.BARCODE_ONLY_FORMATS);
+      setTorchUI('torch-sn', DdmsScanner.isTorchAvailable(), false);
+    } catch (e) {
+      el('status-sn-text').textContent = 'Brak dostępu do aparatu — użyj wpisu ręcznego';
+    }
+  }
+
+  async function onSnDetected(text) {
+    await DdmsScanner.stopCodeScanner().catch(() => {});
+    const existing = await DdmsDB.findBySerialNumber(text);
+    if (existing.length > 0) {
+      vibrate([60, 60, 60]);
+      openConfirm({
+        title: 'Numer już zeskanowany',
+        desc: `Numer seryjny "${text}" był już zarejestrowany w bieżącej zmianie (${existing.length} raz(y)). Czy mimo to kontynuować i dodać kolejny wpis?`,
+        okText: 'Kontynuuj mimo to',
+        okClass: 'btn-primary',
+        onOk: () => { finalizeSn(text); },
+        onCancel: () => { goToScanSn(); }
+      });
+      return;
+    }
+    finalizeSn(text);
+  }
+
+  async function finalizeSn(text) {
+    vibrate(80);
+    currentRecord.serialNumber = text;
+    el('status-sn-text').textContent = '✓ Zeskanowano: ' + text + ' — odsuń telefon od kodu...';
+    await sleep(SCAN_COOLDOWN_MS);
+    goToPhoto();
+  }
+
+  // ------------------------------------------------------------------
+  // KROK 3 — Zdjęcie dokumentacyjne
+  // ------------------------------------------------------------------
+  async function goToPhoto() {
+    showView('photo');
+    el('chip-sn-value').textContent = currentRecord.serialNumber || '—';
+
+    if (hasNativeCamera()) {
+      el('torch-photo').style.display = 'none';
+      el('photo-controls-capture').style.display = 'none';
+      el('native-photo-row').style.display = 'flex';
+      el('photo-video').style.display = 'none';
+      triggerNativePhoto();
+      return;
+    }
+
+    el('native-photo-row').style.display = 'none';
+    setTorchUI('torch-photo', false, false);
+
+    const video = el('photo-video');
+    const preview = el('photo-preview');
+    preview.style.display = 'none';
+    video.style.display = 'block';
+    el('photo-controls-capture').style.display = 'flex';
+
+    try {
+      await DdmsScanner.startPhotoStream(video);
+      setTorchUI('torch-photo', DdmsScanner.isPhotoTorchAvailable(), false);
+    } catch (e) {
+      showToast('Brak dostępu do aparatu do zdjęć', true);
+    }
+  }
+
+  async function handleShutter() {
+    const video = el('photo-video');
+    const canvas = el('photo-canvas');
+    if (!video.videoWidth) return;
+    vibrate(40);
+    const blob = await DdmsScanner.capturePhoto(video, canvas, 0.85);
+    await DdmsScanner.stopPhotoStream();
+    currentRecord.photoBlob = blob;
+    goToReview();
+  }
+
+  // ------------------------------------------------------------------
+  // KROK 4 — Podsumowanie / zapis
+  // ------------------------------------------------------------------
+  function goToReview() {
+    showView('review');
+    if (reviewPhotoObjectUrl) URL.revokeObjectURL(reviewPhotoObjectUrl);
+    reviewPhotoObjectUrl = URL.createObjectURL(currentRecord.photoBlob);
+    el('review-photo-img').src = reviewPhotoObjectUrl;
+
+    el('review-ddms').textContent = currentRecord.ddmsCode || '—';
+    el('review-sn').textContent = currentRecord.serialNumber || '—';
+    el('review-time').textContent = new Date().toLocaleString('pl-PL');
+
+    currentRecord.status = 'OK';
+    el('review-note').value = '';
+    updateStatusToggleUI();
+  }
+
+  function updateStatusToggleUI() {
+    const okBtn = el('status-ok');
+    const defBtn = el('status-defekt');
+    okBtn.classList.toggle('selected', currentRecord.status === 'OK');
+    defBtn.classList.toggle('selected', currentRecord.status === 'DEFEKT');
+  }
+
+  async function saveCurrentRecord() {
+    currentRecord.note = el('review-note').value.trim();
+    const record = {
+      syncId: (crypto.randomUUID ? crypto.randomUUID() : 'ddms-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
+      ddmsCode: currentRecord.ddmsCode,
+      serialNumber: currentRecord.serialNumber,
+      status: currentRecord.status,
+      note: currentRecord.note,
+      photoBlob: currentRecord.photoBlob,
+      timestamp: new Date().toISOString()
+    };
+    try {
+      await DdmsDB.addScan(record);
+      if (window.DdmsSyncBridge) window.DdmsSyncBridge.changed();
+      vibrate([40, 40, 80]);
+      showToast('Zapisano skan ✓');
+      await refreshCounters();
+      goToScanDdms();
+    } catch (e) {
+      console.error(e);
+      showToast('Błąd zapisu do bazy danych', true);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Latarka — wspólna obsługa UI przycisków
+  // ------------------------------------------------------------------
+  function setTorchUI(buttonId, available, on) {
+    const btn = el(buttonId);
+    btn.style.display = available ? 'flex' : 'none';
+    btn.classList.toggle('on', !!on);
+  }
+
+  async function handleTorchClick(buttonId, isPhotoStep) {
+    const btn = el(buttonId);
+    const willTurnOn = !btn.classList.contains('on');
+    const result = isPhotoStep
+      ? await DdmsScanner.togglePhotoTorch(willTurnOn)
+      : await DdmsScanner.toggleTorch(willTurnOn);
+    btn.classList.toggle('on', !!result);
+  }
+
+  // ------------------------------------------------------------------
+  // Wejście ręczne (modal)
+  // ------------------------------------------------------------------
+  let manualModalContext = null; // 'ddms' | 'sn'
+
+  function openManualModal(context) {
+    manualModalContext = context;
+    const titleEl = el('modal-manual-title');
+    const descEl = el('modal-manual-desc');
+    const labelEl = el('modal-manual-label');
+    const input = el('modal-manual-input');
+    input.value = '';
+
+    if (context === 'ddms') {
+      titleEl.textContent = 'Wpisz kod DDMS ręcznie';
+      descEl.textContent = 'Użyj tej opcji, gdy kod QR modułu jest uszkodzony lub nieczytelny.';
+      labelEl.textContent = 'Kod modułu DDMS';
+      input.setAttribute('inputmode', 'text');
+    } else {
+      titleEl.textContent = 'Wpisz numer seryjny ręcznie';
+      descEl.textContent = 'Użyj tej opcji, gdy etykieta z numerem seryjnym jest uszkodzona.';
+      labelEl.textContent = 'Numer seryjny pralki';
+      input.setAttribute('inputmode', 'text');
+    }
+
+    el('modal-manual').classList.add('show');
+    setTimeout(() => input.focus(), 150);
+  }
+
+  function closeManualModal() {
+    el('modal-manual').classList.remove('show');
+  }
+
+  async function confirmManualModal() {
+    const value = el('modal-manual-input').value.trim();
+    if (!value) { showToast('Wprowadź wartość', true); return; }
+    closeManualModal();
+
+    if (manualModalContext === 'ddms') {
+      onDdmsDetected(value);
+    } else if (manualModalContext === 'sn') {
+      await onSnDetected(value);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Modal potwierdzenia (ogólnego użytku)
+  // ------------------------------------------------------------------
+  let confirmOkHandler = null;
+  let confirmCancelHandler = null;
+
+  function openConfirm({ title, desc, okText, okClass, onOk, onCancel }) {
+    el('modal-confirm-title').textContent = title;
+    el('modal-confirm-desc').textContent = desc;
+    const okBtn = el('modal-confirm-ok');
+    okBtn.textContent = okText || 'Potwierdź';
+    okBtn.className = 'btn ' + (okClass || 'btn-danger');
+    confirmOkHandler = onOk || null;
+    confirmCancelHandler = onCancel || null;
+    el('modal-confirm').classList.add('show');
+  }
+
+  function closeConfirm(ranHandler) {
+    el('modal-confirm').classList.remove('show');
+    if (!ranHandler && confirmCancelHandler) confirmCancelHandler();
+    confirmOkHandler = null;
+    confirmCancelHandler = null;
+  }
+
+  // ------------------------------------------------------------------
+  // Drawer / menu boczne
+  // ------------------------------------------------------------------
+  function openDrawer() {
+    refreshCounters();
+    el('drawer').classList.add('show');
+    el('drawer-backdrop').classList.add('show');
+  }
+  function closeDrawer() {
+    el('drawer').classList.remove('show');
+    el('drawer-backdrop').classList.remove('show');
+  }
+
+  // ------------------------------------------------------------------
+  // Lista zapisanych skanów
+  // ------------------------------------------------------------------
+  async function renderList() {
+    listThumbUrls.forEach(u => URL.revokeObjectURL(u));
+    listThumbUrls = [];
+
+    const container = el('list-scroll');
+    const all = await DdmsDB.getAll();
+    all.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    if (all.length === 0) {
+      container.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = '<div class="big-icon">&#128203;</div><div>Brak zapisanych skanów<br>w bieżącej zmianie</div>';
+      container.appendChild(empty);
+      return;
+    }
+
+    container.innerHTML = '';
+    all.forEach(rec => {
+      const item = document.createElement('div');
+      item.className = 'list-item';
+
+      let thumbUrl = '';
+      if (rec.photoBlob) {
+        thumbUrl = URL.createObjectURL(rec.photoBlob);
+        listThumbUrls.push(thumbUrl);
+      }
+
+      const dt = rec.timestamp ? new Date(rec.timestamp) : null;
+      const timeStr = dt ? dt.toLocaleString('pl-PL') : '';
+      const isDefekt = rec.status === 'DEFEKT';
+
+      item.innerHTML = `
+        <img class="thumb" src="${thumbUrl}" alt="Zdjęcie">
+        <div class="info">
+          <div class="sn">${escapeHtml(rec.serialNumber || '—')}</div>
+          <div class="ddms">DDMS: ${escapeHtml(rec.ddmsCode || '—')}</div>
+          <div class="meta">${timeStr}</div>
+        </div>
+        <span class="badge ${isDefekt ? 'defekt' : 'ok'}">${isDefekt ? 'DEFEKT' : 'OK'}</span>
+        <button class="del-btn" data-id="${rec.id}" title="Usuń">&#128465;</button>
+      `;
+      container.appendChild(item);
+    });
+
+    container.querySelectorAll('.del-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.getAttribute('data-id'));
+        openConfirm({
+          title: 'Usunąć wpis?',
+          desc: 'Ta operacja jest nieodwracalna. Rekord zostanie trwale usunięty z bazy.',
+          okText: 'Usuń',
+          okClass: 'btn-danger',
+          onOk: async () => {
+            const removed = (await DdmsDB.getAll()).find(item => item.id === id);
+            if (window.DdmsSyncBridge && removed) window.DdmsSyncBridge.deleted(removed);
+            await DdmsDB.deleteScan(id);
+            if (window.DdmsSyncBridge) window.DdmsSyncBridge.changed();
+            await refreshCounters();
+            renderList();
+          }
+        });
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+  }
+
+  // ------------------------------------------------------------------
+  // Ustawienia zmiany (operator). Wybór zmiany A/B przeniesiony do modala
+  // wyświetlanego bezpośrednio przy generowaniu Excela (patrz niżej) — to
+  // wtedy faktycznie wiadomo, którą zmianę się kończy.
+  // ------------------------------------------------------------------
+  function openSettingsModal() {
+    const s = loadSettings();
+    el('settings-operator').value = s.operator || '';
+    el('modal-settings').classList.add('show');
+  }
+  function closeSettingsModal() {
+    el('modal-settings').classList.remove('show');
+  }
+  function saveSettingsModal() {
+    const existing = loadSettings();
+    const obj = Object.assign({}, existing, {
+      operator: el('settings-operator').value.trim()
+    });
+    saveSettings(obj);
+    closeSettingsModal();
+    showToast('Ustawienia zapisane');
+  }
+
+  // ------------------------------------------------------------------
+  // Eksport do Excel
+  // ------------------------------------------------------------------
+  function showExportLoader(show) {
+    el('export-loader').classList.toggle('show', show);
+  }
+  function setExportProgress(fraction, label) {
+    el('export-progress-fill').style.width = Math.round(fraction * 100) + '%';
+    if (label) el('export-loader-msg').textContent = label;
+  }
+
+  let currentExportShift = 'A';
+
+  function updateExportShiftUI() {
+    el('export-shift-a').classList.toggle('selected', currentExportShift === 'A');
+    el('export-shift-b').classList.toggle('selected', currentExportShift === 'B');
+  }
+
+  function openExportModal(count) {
+    const s = loadSettings();
+    currentExportShift = (s.shift === 'B') ? 'B' : 'A'; // domyślnie ostatnio wybrana zmiana
+    updateExportShiftUI();
+    el('modal-export-desc').textContent =
+      `Zostanie wygenerowany plik Excel zawierający ${count} zapisanych skanów ze zdjęciami.`;
+    el('modal-export').classList.add('show');
+  }
+  function closeExportModal() {
+    el('modal-export').classList.remove('show');
+  }
+
+  async function runExportFlow() {
+    const all = await DdmsDB.getAll();
+    if (all.length === 0) {
+      showToast('Brak zapisanych skanów do wyeksportowania', true);
+      return;
+    }
+    openExportModal(all.length);
+  }
+
+  async function generateExcelForShift() {
+    const all = await DdmsDB.getAll();
+    const chosenShift = currentExportShift;
+    closeExportModal();
+
+    // Zapamiętaj wybór — następnym razem modal podpowie tę samą zmianę.
+    const existingSettings = loadSettings();
+    const newSettings = Object.assign({}, existingSettings, { shift: chosenShift });
+    saveSettings(newSettings);
+
+    await stopAllCamerasAndStreams();
+    showExportLoader(true);
+    setExportProgress(0, 'Przygotowywanie arkusza...');
+    try {
+      all.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const { blob, filename } = await DdmsExport.exportShiftToExcel(
+        all, newSettings, (f, label) => setExportProgress(f, label)
+      );
+      DdmsExport.downloadBlob(blob, filename);
+      showExportLoader(false);
+      showToast(`Plik Excel wygenerowany ✓ (Zmiana ${chosenShift})`);
+
+      setTimeout(() => {
+        openConfirm({
+          title: 'Nowa zmiana',
+          desc: 'Plik został pobrany. Czy wyczyścić bazę danych, aby rozpocząć nową zmianę?',
+          okText: 'Wyczyść bazę',
+          okClass: 'btn-danger',
+          onOk: async () => {
+            if (window.DdmsSyncBridge) window.DdmsSyncBridge.deletedMany(await DdmsDB.getAll());
+            await DdmsDB.clearAll();
+            if (window.DdmsSyncBridge) window.DdmsSyncBridge.changed();
+            await refreshCounters();
+            showToast('Baza wyczyszczona — gotowe na nową zmianę');
+            goToScanDdms();
+          }
+        });
+      }, 500);
+    } catch (e) {
+      console.error(e);
+      showExportLoader(false);
+      showToast('Błąd generowania pliku Excel', true);
+    }
+  }
+
+  function confirmClearDatabase() {
+    openConfirm({
+      title: 'Wyczyścić całą bazę?',
+      desc: 'Wszystkie zapisane skany i zdjęcia zostaną trwale usunięte z pamięci telefonu. Ta operacja jest nieodwracalna.',
+      okText: 'Wyczyść bazę',
+      okClass: 'btn-danger',
+      onOk: async () => {
+        if (window.DdmsSyncBridge) window.DdmsSyncBridge.deletedMany(await DdmsDB.getAll());
+        await DdmsDB.clearAll();
+        if (window.DdmsSyncBridge) window.DdmsSyncBridge.changed();
+        await refreshCounters();
+        showToast('Baza danych wyczyszczona');
+        if (currentView === 'list') renderList();
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Podpięcie zdarzeń UI
+  // ------------------------------------------------------------------
+  function bindEvents() {
+    // Menu / drawer
+    el('btn-menu').addEventListener('click', openDrawer);
+    el('drawer-backdrop').addEventListener('click', closeDrawer);
+    el('menu-scan').addEventListener('click', () => { closeDrawer(); goToScanDdms(); });
+    el('menu-list').addEventListener('click', () => { closeDrawer(); renderList(); showView('list'); });
+    el('menu-settings').addEventListener('click', () => { closeDrawer(); openSettingsModal(); });
+    el('menu-export').addEventListener('click', () => { closeDrawer(); runExportFlow(); });
+    el('menu-clear').addEventListener('click', () => { closeDrawer(); confirmClearDatabase(); });
+
+    el('btn-list-back').addEventListener('click', () => goToScanDdms());
+
+    // Krok 1 — DDMS
+    el('btn-rescan-ddms').addEventListener('click', () => startDdmsScan());
+    el('btn-manual-ddms').addEventListener('click', async () => {
+      await DdmsScanner.stopCodeScanner().catch(() => {});
+      openManualModal('ddms');
+    });
+    el('torch-ddms').addEventListener('click', () => handleTorchClick('torch-ddms', false));
+
+    // Krok 2 — SN
+    el('btn-rescan-sn').addEventListener('click', () => startSnScan());
+    el('btn-back-to-ddms').addEventListener('click', () => goToScanDdms());
+    el('btn-manual-sn').addEventListener('click', async () => {
+      await DdmsScanner.stopCodeScanner().catch(() => {});
+      openManualModal('sn');
+    });
+    el('torch-sn').addEventListener('click', () => handleTorchClick('torch-sn', false));
+
+    // Krok 3 — Zdjęcie
+    el('btn-shutter').addEventListener('click', handleShutter);
+    el('btn-native-photo').addEventListener('click', () => triggerNativePhoto());
+    el('btn-cancel-photo').addEventListener('click', async () => {
+      await DdmsScanner.stopPhotoStream();
+      goToScanSn();
+    });
+    el('torch-photo').addEventListener('click', () => handleTorchClick('torch-photo', true));
+
+    // Krok 4 — Podsumowanie
+    el('status-ok').addEventListener('click', () => { currentRecord.status = 'OK'; updateStatusToggleUI(); });
+    el('status-defekt').addEventListener('click', () => { currentRecord.status = 'DEFEKT'; updateStatusToggleUI(); });
+    el('btn-retake-photo').addEventListener('click', () => goToPhoto());
+    el('btn-save-record').addEventListener('click', saveCurrentRecord);
+
+    // Modal: wpis ręczny
+    el('modal-manual-cancel').addEventListener('click', () => {
+      closeManualModal();
+      if (manualModalContext === 'ddms') goToScanDdms();
+      else if (manualModalContext === 'sn') goToScanSn();
+    });
+    el('modal-manual-confirm').addEventListener('click', confirmManualModal);
+    el('modal-manual-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmManualModal();
+    });
+
+    // Modal: ustawienia
+    el('modal-settings-cancel').addEventListener('click', closeSettingsModal);
+    el('modal-settings-save').addEventListener('click', saveSettingsModal);
+
+    // Modal: wybór zmiany przy eksporcie
+    el('export-shift-a').addEventListener('click', () => { currentExportShift = 'A'; updateExportShiftUI(); });
+    el('export-shift-b').addEventListener('click', () => { currentExportShift = 'B'; updateExportShiftUI(); });
+    el('modal-export-cancel').addEventListener('click', closeExportModal);
+    el('modal-export-confirm').addEventListener('click', () => generateExcelForShift());
+
+    // Modal: potwierdzenie ogólne
+    el('modal-confirm-cancel').addEventListener('click', () => closeConfirm(false));
+    el('modal-confirm-ok').addEventListener('click', () => {
+      const handler = confirmOkHandler;
+      el('modal-confirm').classList.remove('show');
+      confirmOkHandler = null;
+      confirmCancelHandler = null;
+      if (handler) handler();
+    });
+
+    // Offline / online info
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Zwalnianie kamery WebView, gdy aplikacja schodzi w tło (oszczędność
+    // baterii). WAŻNE: to dotyczy wyłącznie starego mechanizmu opartego na
+    // getUserMedia. Natywne wtyczki (skaner ML Kit / aparat systemowy)
+    // same chowają WebView w tle na czas swojego działania, więc to
+    // zdarzenie odpaliłoby się przy każdym ich użyciu — gdybyśmy wtedy
+    // odpalili ponownie goToScanDdms()/goToScanSn()/goToPhoto(), skaner lub
+    // aparat uruchamiałby się w nieskończonej pętli zamiast przejść dalej
+    // po udanym odczycie/zdjęciu. Dlatego przy dostępnych wtyczkach
+    // natywnych ten automatyczny restart jest całkowicie pomijany — każdy
+    // z nich sam wznawia właściwy krok po zakończeniu swojej pracy.
+    document.addEventListener('visibilitychange', () => {
+      if (hasNativeBarcodeScanner() || hasNativeCamera()) return;
+
+      if (document.hidden) {
+        stopAllCamerasAndStreams();
+      } else {
+        if (currentView === 'scanDdms') goToScanDdms();
+        else if (currentView === 'scanSn') goToScanSn();
+        else if (currentView === 'photo') goToPhoto();
+      }
+    });
+  }
+
+  function updateOnlineStatus() {
+    // Informacyjnie — aplikacja i tak działa w pełni offline.
+    el('offline-pill').classList.toggle('show', !navigator.onLine);
+  }
+
+  // ------------------------------------------------------------------
+  // Start aplikacji
+  // ------------------------------------------------------------------
+  async function init() {
+    bindEvents();
+    updateOnlineStatus();
+    await refreshCounters();
+    goToScanDdms();
+    window.addEventListener('sentinel-ddms-updated', async () => {
+      await refreshCounters();
+      if (currentView === 'list') renderList();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+<script src="../sentinel-sync.js"></script>
+<script src="sentinel-adapter.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').catch(function(err){
+        console.warn('Service worker nie został zarejestrowany:', err);
+      });
+    });
+  }
+</script>
+</body>
+</html>
