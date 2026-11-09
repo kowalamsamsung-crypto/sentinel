@@ -24,6 +24,7 @@ const required = [
   'www/lib/xlsx.full.min.js',
   'www/lib/exceljs.min.js',
   'www/modules/sentinel-sync.js',
+  'www/modules/report-history.js',
   'www/modules/ddms/index.html',
   'www/modules/warehouse/index.html',
   'www/modules/cleanily/index.html'
@@ -34,6 +35,7 @@ for (const file of required) {
 }
 
 new Function(fs.readFileSync(path.join(root, 'scripts/patch-android.js'), 'utf8'));
+new Function(fs.readFileSync(path.join(root, 'www/modules/report-history.js'), 'utf8'));
 
 const icon = fs.readFileSync(path.join(root, 'assets/sentinel-icon.png'));
 if (icon.toString('ascii', 1, 4) !== 'PNG' || icon.readUInt32BE(16) !== 1024 || icon.readUInt32BE(20) !== 1024) {

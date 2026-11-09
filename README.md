@@ -51,6 +51,8 @@ http://192.168.1.100:3000
 
 Zastąp adres przykładowy adresem IPv4 komputera. Zapora Windows musi zezwalać na połączenia do portu 3000.
 
+Historia raportów DDMS Ratio, W/H Inspection i Cleanily OQC jest zapisywana przez serwer w sąsiednich folderach `DDMS`, `WH` i `CLEANILY`. W każdym z nich plik stanu trafia do `json`, a wygenerowany Excel, PPTX, HTML, PDF lub JPG do `raport`. Wymaga to serwera z pełnej, zaktualizowanej paczki Sentinel Karol.
+
 ## Zawartość projektu
 
 - `.github/workflows/build-apk.yml` — automatyczny build na GitHubie,

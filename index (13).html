@@ -125,6 +125,7 @@
   <section id="printReport" aria-hidden="true"></section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="../../lib/jspdf.umd.min.js"></script>
   <script src="native-plugins.js"></script>
   <script>
   (() => {
@@ -311,11 +312,49 @@
       return `<div class="report-head"><h1>Raport zdjęciowy audytu 5S</h1><b>Laboratorium OQC WM</b><div class="report-meta"><span><b>Rozpoczęcie:</b> ${esc(formatDate(data.startedAt))}</span><span><b>Wygenerowano:</b> ${esc(new Date().toLocaleString('pl-PL'))}</span><span><b>Zdjęcia:</b> 6 / 6</span></div></div>${rows}<article class="report-zone"><h2><span>6. Zdjęcie całego laboratorium</span></h2><img class="report-photo" src="${data.panorama}" alt="Zdjęcie całego laboratorium"></article><div class="report-foot">Raport wygenerowany lokalnie w aplikacji Audyt 5S • Laboratorium OQC WM.</div>`;
     }
 
-    function generateReport(){
-      if(!validate()) return;
-      $('#printReport').innerHTML=reportMarkup();
-      const imgs=[...$('#printReport').querySelectorAll('img')];
-      Promise.all(imgs.map(img=>img.complete?Promise.resolve():new Promise(r=>{img.onload=img.onerror=r;}))).then(()=>setTimeout(()=>window.print(),80));
+    function downloadBlobFile(blob,fileName){
+      const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=fileName;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+    }
+
+    async function deliverBlob(blob,fileName,mimeType){
+      try{
+        const cap=window.Capacitor||(window.parent&&window.parent.Capacitor);
+        const plugin=cap&&cap.Plugins&&cap.Plugins.SentinelScanner;
+        if(plugin&&typeof plugin.shareFile==='function'&&window.SentinelReportHistory){
+          await plugin.shareFile({name:fileName,mime:mimeType,data:await window.SentinelReportHistory.blobToBase64(blob)});
+          return;
+        }
+      }catch(e){console.warn('Udostępnianie pliku:',e);}
+      downloadBlobFile(blob,fileName);
+    }
+
+    async function canvasToPdfBlob(canvas){
+      if(!window.jspdf||!window.jspdf.jsPDF)throw new Error('Generator PDF nie został załadowany.');
+      const {jsPDF}=window.jspdf,pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+      const margin=7,pageW=210,pageH=297,usableW=pageW-margin*2,usableH=pageH-margin*2;
+      const pxPerMm=canvas.width/usableW,sliceHeight=Math.floor(usableH*pxPerMm);
+      let offset=0,page=0;
+      while(offset<canvas.height){
+        const height=Math.min(sliceHeight,canvas.height-offset),part=document.createElement('canvas');part.width=canvas.width;part.height=height;
+        part.getContext('2d',{alpha:false}).drawImage(canvas,0,offset,canvas.width,height,0,0,canvas.width,height);
+        if(page++)pdf.addPage();
+        pdf.addImage(part.toDataURL('image/jpeg',.88),'JPEG',margin,margin,usableW,height/pxPerMm,undefined,'FAST');
+        offset+=height;
+      }
+      return pdf.output('blob');
+    }
+
+    async function generateReport(){
+      try{
+        const result=await createCombinedImage();if(!result)return;
+        notify('Generowanie raportu PDF…');
+        const blob=await canvasToPdfBlob(result.canvas),fileName=`${result.fileName}.pdf`;
+        if(window.SentinelReportHistory){
+          await window.SentinelReportHistory.archive({module:'cleanily',title:'Cleanily OQC — raport PDF',reportName:fileName,mimeType:'application/pdf',reportBlob:blob,summary:{photos:6},state:JSON.parse(JSON.stringify(data))});
+        }
+        await deliverBlob(blob,fileName,'application/pdf');
+        notify('Raport PDF zapisany w historii.');
+      }catch(error){console.error(error);notify('Nie udało się wygenerować raportu PDF.',true);}
     }
 
     function loadImage(src){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src;});}
@@ -364,10 +403,13 @@
       try{
         const result=await createCombinedImage();
         if(!result)return;
-        const {canvas,fileName}=result;
+        const {canvas,fileName}=result,dataUrl=canvas.toDataURL('image/jpeg',.86),fullName=`${fileName}.jpg`;
+        if(window.SentinelReportHistory){
+          await window.SentinelReportHistory.archive({module:'cleanily',title:'Cleanily OQC — raport JPG',reportName:fullName,mimeType:'image/jpeg',reportBase64:dataUrl,summary:{photos:6},state:JSON.parse(JSON.stringify(data))});
+        }
         if(window.CleanilyNative?.isNative?.()){
           try{
-            await window.CleanilyNative.saveImageToGallery(canvas.toDataURL('image/jpeg',.86),fileName);
+            await window.CleanilyNative.saveImageToGallery(dataUrl,fileName);
             notify('Zapisano raport w galerii, w albumie Cleanily.');
             return;
           }catch(nativeError){
@@ -383,6 +425,9 @@
         const result=await createCombinedImage();
         if(!result)return;
         const {canvas,fileName}=result,dataUrl=canvas.toDataURL('image/jpeg',.86),fullName=`${fileName}.jpg`;
+        if(window.SentinelReportHistory){
+          await window.SentinelReportHistory.archive({module:'cleanily',title:'Cleanily OQC — udostępniony raport JPG',reportName:fullName,mimeType:'image/jpeg',reportBase64:dataUrl,summary:{photos:6},state:JSON.parse(JSON.stringify(data))});
+        }
         if(window.CleanilyNative?.isNative?.() && window.CleanilyNative?.shareImage){
           await window.CleanilyNative.shareImage(dataUrl,fullName);
           notify('Otwarto menu udostępniania.');
@@ -427,6 +472,8 @@
   })();
   </script>
   <script src="../sentinel-sync.js"></script>
+  <script src="../report-history.js"></script>
   <script src="sentinel-adapter.js"></script>
+  <script>window.SentinelReportHistory && window.SentinelReportHistory.mount('cleanily');</script>
 </body>
 </html>

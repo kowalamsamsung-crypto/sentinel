@@ -965,17 +965,60 @@
       return document.getElementById('tab-warehouse').classList.contains('active');
     }
 
+    function warehouseHistoryState() {
+      const fields = {};
+      ['truckId','pptxCustomer','pptxDO','pptxDate','pptxDeadline','pptxInspector','pptxModel','pptxPIC','pptxQty','pptxResponsible','pptxResult','pptxSeries'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) fields[id] = element.value;
+      });
+      return {
+        fields,
+        warehouseDefects: JSON.parse(JSON.stringify(warehouseDefects || [])),
+        loadingDefects: JSON.parse(JSON.stringify(loadingDefects || [])),
+        loadingPhotos: { ...(loadingPhotos || {}) }
+      };
+    }
+
+    function downloadReportBlob(blob, fileName) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
     async function deliverPPTX(pptx, fileName, shareReport) {
+      const mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      const base64 = await pptx.write({ outputType: 'base64' });
+      if (window.SentinelReportHistory) {
+        await window.SentinelReportHistory.archive({
+          module: 'warehouse',
+          title: fileName.replace(/\.pptx$/i, '').replace(/_/g, ' '),
+          reportName: fileName,
+          mimeType,
+          reportBase64: base64,
+          summary: {
+            warehouseDefects: warehouseDefects.length,
+            loadingDefects: loadingDefects.length,
+            loadingPhotos: Object.keys(loadingPhotos || {}).length
+          },
+          state: warehouseHistoryState()
+        });
+      }
       if (window.Android && typeof window.Android.saveBase64File === 'function') {
-        const base64 = await pptx.write({ outputType: 'base64' });
-        const mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
         if (shareReport && typeof window.Android.shareBase64File === 'function') {
           window.Android.shareBase64File(fileName, mimeType, base64);
         } else {
           window.Android.saveBase64File(fileName, mimeType, base64);
         }
       } else {
-        await pptx.writeFile({ fileName });
+        const blob = window.SentinelReportHistory
+          ? window.SentinelReportHistory.base64ToBlob(base64, mimeType)
+          : new Blob([Uint8Array.from(atob(base64), char => char.charCodeAt(0))], { type: mimeType });
+        downloadReportBlob(blob, fileName);
       }
     }
 
@@ -1351,7 +1394,7 @@
       }
     }
 
-    function exportHTMLReport() {
+    async function exportHTMLReport() {
       const dateStr = new Date().toLocaleString('pl-PL');
       const truckId = document.getElementById('truckId').value.trim() || 'Nie podano';
 
@@ -1442,10 +1485,26 @@
 
       const filePrefix = warehouseOnly ? 'Warehouse_Inspection' : 'Raport_Inspekcji_WM';
       const fileName = `${filePrefix}_${new Date().toISOString().slice(0,10)}.html`;
+      const mimeType = 'text/html; charset=utf-8';
+      if (window.SentinelReportHistory) {
+        await window.SentinelReportHistory.archive({
+          module: 'warehouse',
+          title: warehouseOnly ? 'Warehouse Inspection — raport HTML' : 'W/H Inspection — raport HTML',
+          reportName: fileName,
+          mimeType,
+          reportText: reportHtml,
+          summary: {
+            warehouseDefects: warehouseDefects.length,
+            loadingDefects: loadingDefects.length,
+            loadingPhotos: Object.keys(loadingPhotos || {}).length
+          },
+          state: warehouseHistoryState()
+        });
+      }
       if (window.Android && typeof window.Android.saveBase64File === 'function') {
-        saveTextReportOnAndroid(fileName, 'text/html; charset=utf-8', reportHtml);
+        saveTextReportOnAndroid(fileName, mimeType, reportHtml);
       } else {
-        const blob = new Blob([reportHtml], { type: 'text/html' });
+        const blob = new Blob([reportHtml], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -1456,6 +1515,8 @@
     }
   </script>
   <script src="../sentinel-sync.js"></script>
+  <script src="../report-history.js"></script>
   <script src="sentinel-adapter.js"></script>
+  <script>window.SentinelReportHistory && window.SentinelReportHistory.mount('warehouse');</script>
 </body>
 </html>

@@ -2422,6 +2422,22 @@ const DdmsExport = (() => {
     openExportModal(all.length);
   }
 
+  async function buildDdmsHistoryState(records, settings, shift) {
+    const history = window.SentinelReportHistory;
+    const prepared = await Promise.all(records.map(async record => ({
+      syncId: record.syncId || '',
+      ddmsCode: record.ddmsCode || '',
+      serialNumber: record.serialNumber || '',
+      status: record.status || 'OK',
+      note: record.note || '',
+      timestamp: record.timestamp || '',
+      photoData: record.photoBlob && history
+        ? `data:${record.photoBlob.type || 'image/jpeg'};base64,${await history.blobToBase64(record.photoBlob)}`
+        : ''
+    })));
+    return { shift, settings: { ...(settings || {}) }, records: prepared };
+  }
+
   async function generateExcelForShift() {
     const all = await DdmsDB.getAll();
     const chosenShift = currentExportShift;
@@ -2440,7 +2456,24 @@ const DdmsExport = (() => {
       const { blob, filename } = await DdmsExport.exportShiftToExcel(
         all, newSettings, (f, label) => setExportProgress(f, label)
       );
-      DdmsExport.downloadBlob(blob, filename);
+      const historyState = await buildDdmsHistoryState(all, newSettings, chosenShift);
+      if (window.SentinelReportHistory) {
+        await window.SentinelReportHistory.archive({
+          module: 'ddms',
+          title: `DDMS Ratio — zmiana ${chosenShift}`,
+          reportName: filename,
+          mimeType: blob.type,
+          reportBlob: blob,
+          summary: {
+            shift: chosenShift,
+            records: all.length,
+            ok: all.filter(item => item.status !== 'DEFEKT').length,
+            defects: all.filter(item => item.status === 'DEFEKT').length
+          },
+          state: historyState
+        });
+      }
+      await DdmsExport.downloadBlob(blob, filename);
       showExportLoader(false);
       showToast(`Plik Excel wygenerowany ✓ (Zmiana ${chosenShift})`);
 
@@ -2612,7 +2645,9 @@ const DdmsExport = (() => {
 })();
 </script>
 <script src="../sentinel-sync.js"></script>
+<script src="../report-history.js"></script>
 <script src="sentinel-adapter.js"></script>
+<script>window.SentinelReportHistory && window.SentinelReportHistory.mount('ddms');</script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
