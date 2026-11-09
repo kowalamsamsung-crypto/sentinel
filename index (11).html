@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>W/H Inspection</title>
+  <!-- Biblioteka PptxGenJS do generowania plików PowerPoint (.pptx) -->
+  <script src="pptxgen.bundle.js"></script>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --bg-input: #0f172a;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --pptx-color: #d97706;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      padding-bottom: 170px;
+    }
+
+    header {
+      background-color: var(--bg-card);
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-shift {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-optional {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .badge-pptx-map {
+      background: rgba(217, 119, 6, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(217, 119, 6, 0.4);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background-color: var(--bg-card);
+      padding: 6px;
+      margin: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 12px 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background-color: var(--primary);
+      color: white;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    }
+
+    .view-section {
+      display: none;
+      padding: 0 12px;
+      max-width: 768px;
+      margin: 0 auto;
+    }
+
+    .view-section.active {
+      display: block;
+    }
+
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text-main);
+      font-size: 0.9rem;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .damage-types {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .damage-option input {
+      display: none;
+    }
+
+    .damage-option span {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 6px;
+      background-color: var(--bg-input);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .damage-option input:checked + span {
+      border-color: var(--danger);
+      background-color: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+    }
+
+    .photo-upload-box {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      text-align: center;
+      cursor: pointer;
+      background-color: rgba(15, 23, 42, 0.5);
+      transition: border-color 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .photo-upload-box:hover {
+      border-color: var(--primary);
+    }
+
+    .photo-upload-box input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .preview-img {
+      width: 100%;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-top: 10px;
+      display: none;
+      border: 1px solid var(--border);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary { background-color: var(--primary); color: white; }
+    .btn-warning { background-color: var(--warning); color: #0f172a; }
+    .btn-success { background-color: var(--success); color: white; }
+    .btn-pptx { background-color: var(--pptx-color); color: white; }
+    .btn-share { background-color: #2563eb; color: white; }
+
+    .btn-danger-sm {
+      background-color: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border: 1px solid var(--danger);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .defect-item {
+      display: grid;
+      grid-template-columns: 90px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+
+    .defect-item img {
+      width: 90px;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      margin-right: 4px;
+      margin-top: 4px;
+      background-color: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+    }
+
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .photo-slot {
+      background-color: var(--bg-input);
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      position: relative;
+      min-height: 150px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .photo-slot.filled {
+      border-style: solid;
+      border-color: var(--success);
+      padding: 6px;
+    }
+
+    .photo-slot input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .slot-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .slot-img {
+      width: 100%;
+      height: 115px;
+      object-fit: cover;
+      border-radius: 6px;
+      display: none;
+    }
+
+    .slot-remove {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #ef4444;
+      border: 1px solid #ef4444;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      z-index: 5;
+      display: none;
+    }
+
+    .progress-bar-wrap {
+      background-color: var(--bg-input);
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .progress-bar-fill {
+      background-color: var(--success);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: var(--bg-card);
+      border-top: 1px solid var(--border);
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      z-index: 40;
+    }
+
+    .bottom-bar .btn {
+      min-width: 0;
+      padding: 11px 8px;
+      font-size: 0.82rem;
+    }
+
+    .bottom-bar .btn-html {
+      grid-column: 1 / -1;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📦 W/H Inspection</h1>
+    <span class="badge-shift" id="currentDate"></span>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('warehouse', this)">
+      🏭 Warehouse Inspection (<span id="whCount">0</span>)
+    </button>
+    <button class="tab-btn" onclick="switchTab('loading', this)">
+      🚛 Loading Inspection (<span id="loadCount">0/9</span>)
+    </button>
+  </div>
+
+  <!-- ==================== ZAKŁADKA 1: WAREHOUSE INSPECTION ==================== -->
+  <section id="tab-warehouse" class="view-section active">
+    <div class="card">
+      <div class="card-title">
+        <span>Zgłoś uszkodzone opakowanie pralki</span>
+      </div>
+
+      <div class="form-group">
+        <label>Numer pola magazynowego (Lokalizacja) *</label>
+        <input type="text" id="whZone" placeholder="np. A-14-02 / Sektor B3">
+      </div>
+
+      <div class="form-group">
+        <label>Rodzaj uszkodzonego opakowania (wybierz min. 1) *</label>
+        <div class="damage-types">
+          <label class="damage-option">
+            <input type="checkbox" name="damageType" value="Folia">
+            <span>🛡️ Folia</span>
+          </label>
+          <label class="damage-option">
+            <input type="checkbox" name="damageType" value="Styropian">
+            <span>🧱 Styropian</span>
+          </label>
+          <label class="damage-option">
+            <input type="checkbox" name="damageType" value="Karton">
+            <span>📦 Karton</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Uwagi / Nr seryjny (opcjonalnie)</label>
+        <input type="text" id="whNotes" placeholder="np. Rozerwany narożnik dolny, wilgoć...">
+      </div>
+
+      <div class="form-group">
+        <label>Zdjęcie uszkodzenia *</label>
+        <div class="photo-upload-box">
+          <input type="file" id="whPhotoInput" accept="image/*" capture="environment" onchange="previewWarehousePhoto(this)">
+          <div id="whUploadPrompt">
+            <div style="font-size: 1.8rem; margin-bottom: 4px;">📷</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Kliknij, aby zrobić zdjęcie lub wybrać z galerii</div>
+          </div>
+          <img id="whPhotoPreview" class="preview-img" alt="Podgląd uszkodzenia">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="addWarehouseDefect()">
+        ➕ Dodaj uszkodzenie do listy
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Zarejestrowane uszkodzenia na magazynie</span>
+      </div>
+      <div id="whList">
+        <p style="color: var(--text-muted); font-size: 0.85rem; text-align: center; padding: 14px;">
+          Brak zgłoszonych uszkodzeń w tej sesji.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== ZAKŁADKA 2: LOADING INSPECTION ==================== -->
+  <section id="tab-loading" class="view-section">
+
+    <div class="card">
+      <div class="card-title">
+        <span>Status kontroli załadunku (Wymagane zdjęcia)</span>
+        <span id="loadProgressText" style="color: var(--success); font-weight: 700;">0 / 9 zdjęć</span>
+      </div>
+      <div class="progress-bar-wrap" style="margin-bottom: 14px;">
+        <div class="progress-bar-fill" id="loadProgressBar"></div>
+      </div>
+
+      <div class="card-title" style="font-size: 0.9rem; border-top: 1px solid var(--border); padding-top: 12px;">
+        <span>📋 Dane raportu PPTX (Inspection Result & Details)</span>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label>Nagłówek (Seria modelu)</label>
+          <input type="text" id="pptxSeries" value="WW6000D">
+        </div>
+        <div class="form-group">
+          <label>Data (na slajd)</label>
+          <input type="text" id="pptxDate" value="">
+        </div>
+        <div class="form-group">
+          <label>Truck No. (Nr naczepy)</label>
+          <input type="text" id="truckId" value="PSZ TL62">
+        </div>
+        <div class="form-group">
+          <label>Model (Pełny kod)</label>
+          <input type="text" id="pptxModel" value="WW90DG6U25LEU3">
+        </div>
+        <div class="form-group">
+          <label>Total Q'ty / Inspection Q'ty</label>
+          <input type="number" id="pptxQty" value="180">
+        </div>
+        <div class="form-group">
+          <label>D/O (Nr dokumentu)</label>
+          <input type="text" id="pptxDO" value="6103144704">
+        </div>
+        <div class="form-group">
+          <label>Customer</label>
+          <input type="text" id="pptxCustomer" value="SENA">
+        </div>
+        <div class="form-group">
+          <label>Result</label>
+          <select id="pptxResult">
+            <option value="PASS">PASS</option>
+            <option value="NG">NG</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>PIC</label>
+          <input type="text" id="pptxPIC" value="Jarosław Lipski">
+        </div>
+        <div class="form-group">
+          <label>Inspektor</label>
+          <input type="text" id="pptxInspector" value="IBI Paweł Orzechowski">
+        </div>
+        <div class="form-group">
+          <label>Responsible (Slajd 2)</label>
+          <input type="text" id="pptxResponsible" value="Michal Sadowski">
+        </div>
+        <div class="form-group">
+          <label>Deadline (Slajd 2)</label>
+          <input type="text" id="pptxDeadline" value="Before loading">
+        </div>
+      </div>
+    </div>
+
+    <!-- KROK 1: 2 Zdjęcia dokumentów -->
+    <div class="card">
+      <div class="card-title">
+        <span>📄 1. Dokumenty z załadunku (Wymagane: 2 zdjęcia)</span>
+        <span class="badge-pptx-map">PPTX Slajd 1 ➔ Loading checklist signed by...</span>
+      </div>
+      <div class="slots-grid" id="grid-docs"></div>
+    </div>
+
+    <!-- KROK 2: 3 Zdjęcia naczepy TIR-a -->
+    <div class="card">
+      <div class="card-title">
+        <span>🚛 2. Naczepa TIR-a (Wymagane: 3 zdjęcia)</span>
+        <span class="badge-pptx-map">PPTX Slajd 1 ➔ Prepared the car trailer...</span>
+      </div>
+      <div class="slots-grid" id="grid-trailer"></div>
+    </div>
+
+    <!-- KROK 3: 4 Zdjęcia paczek (folia stretch) -->
+    <div class="card">
+      <div class="card-title">
+        <span>📦 3. Paczki – pralki w folii stretch (Wymagane: 4 zdjęcia)</span>
+        <span class="badge-pptx-map">PPTX Slajd 1 ➔ Prepared the products to loading</span>
+      </div>
+      <div class="slots-grid" id="grid-packages"></div>
+    </div>
+
+    <!-- KROK 4 (OPCJONALNY): Zdjęcia uszkodzonych opakowań przy załadunku -->
+    <div class="card" style="border-color: rgba(245, 158, 11, 0.4);">
+      <div class="card-title">
+        <span>⚠️ 4. Uszkodzone opakowania przy załadunku</span>
+        <span class="badge-optional">Opcjonalnie (<span id="loadDefectsCount">0</span>)</span>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
+        Sekcja niewymagana do zakończenia kontroli. Po dodaniu jednego zdjęcia możesz od razu dodać kolejne.
+      </p>
+
+      <div class="form-group">
+        <label>Rodzaj uszkodzonego opakowania (opcjonalnie)</label>
+        <div class="damage-types">
+          <label class="damage-option">
+            <input type="checkbox" name="loadDamageType" value="Folia">
+            <span>🛡️ Folia</span>
+          </label>
+          <label class="damage-option">
+            <input type="checkbox" name="loadDamageType" value="Styropian">
+            <span>🧱 Styropian</span>
+          </label>
+          <label class="damage-option">
+            <input type="checkbox" name="loadDamageType" value="Karton">
+            <span>📦 Karton</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Opis uszkodzenia / Nr palety lub pralki (opcjonalnie)</label>
+        <input type="text" id="loadDefectNotes" placeholder="np. Przetarta folia stretch na palecie #3...">
+      </div>
+
+      <div class="form-group">
+        <label>Zdjęcie uszkodzonego opakowania *</label>
+        <div class="photo-upload-box">
+          <input type="file" id="loadDefectPhotoInput" accept="image/*" capture="environment" onchange="previewLoadingDefectPhoto(this)">
+          <div id="loadDefectUploadPrompt">
+            <div style="font-size: 1.8rem; margin-bottom: 4px;">📷</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Kliknij, aby zrobić zdjęcie uszkodzonego opakowania</div>
+          </div>
+          <img id="loadDefectPhotoPreview" class="preview-img" alt="Podgląd uszkodzenia przy załadunku">
+        </div>
+      </div>
+
+      <button class="btn btn-warning" onclick="addLoadingDefect()">
+        ➕ Dodaj uszkodzenie i przygotuj kolejne
+      </button>
+
+      <div id="loadDefectsList" style="margin-top: 16px;"></div>
+    </div>
+
+  </section>
+
+  <!-- DOLNY PASEK RAPORTOWANIA -->
+  <div class="bottom-bar">
+    <button class="btn btn-pptx" onclick="exportPPTXReport()">
+      📊 Pobierz raport PPTX
+    </button>
+    <button class="btn btn-share" onclick="exportPPTXReport(true)">
+      📤 Udostępnij PPTX
+    </button>
+    <button class="btn btn-success btn-html" onclick="exportHTMLReport()">
+      📥 Pobierz raport HTML
+    </button>
+  </div>
+
+  <script>
+    let warehouseDefects = [];
+    let currentWhPhotoBase64 = null;
+
+    let loadingDefects = [];
+    let currentLoadDefectPhotoBase64 = null;
+
+    const loadingSlotsConfig = [
+      { id: 'doc_1', group: 'grid-docs', label: 'Dokument #1 (Lewy)' },
+      { id: 'doc_2', group: 'grid-docs', label: 'Dokument #2 (Prawy)' },
+      { id: 'trailer_1', group: 'grid-trailer', label: 'Naczepa #1 (Góra - Wnętrze)' },
+      { id: 'trailer_2', group: 'grid-trailer', label: 'Naczepa #2 (Dół Lewy)' },
+      { id: 'trailer_3', group: 'grid-trailer', label: 'Naczepa #3 (Dół Prawy)' },
+      { id: 'pkg_1', group: 'grid-packages', label: 'Paczka #1 (Góra Lewy)' },
+      { id: 'pkg_2', group: 'grid-packages', label: 'Paczka #2 (Góra Prawy)' },
+      { id: 'pkg_3', group: 'grid-packages', label: 'Paczka #3 (Dół Lewy)' },
+      { id: 'pkg_4', group: 'grid-packages', label: 'Paczka #4 (Dół Prawy)' }
+    ];
+
+    let loadingPhotos = {};
+
+    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('pl-PL');
+    document.getElementById('pptxDate').value = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long'
+    });
+    renderLoadingSlots();
+    renderLoadingDefectsList();
+
+    function switchTab(tabName, btnEl) {
+      document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + tabName).classList.add('active');
+      btnEl.classList.add('active');
+    }
+
+    function compressImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1280;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          callback(compressedDataUrl);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function previewWarehousePhoto(input) {
+      if (input.files && input.files[0]) {
+        compressImage(input.files[0], (base64) => {
+          currentWhPhotoBase64 = base64;
+          const preview = document.getElementById('whPhotoPreview');
+          preview.src = base64;
+          preview.style.display = 'block';
+          document.getElementById('whUploadPrompt').style.display = 'none';
+        });
+      }
+    }
+
+    function addWarehouseDefect() {
+      const zone = document.getElementById('whZone').value.trim();
+      const notes = document.getElementById('whNotes').value.trim();
+      const checkedTypes = Array.from(document.querySelectorAll('input[name="damageType"]:checked')).map(cb => cb.value);
+
+      if (!zone) {
+        alert('Wpisz numer pola na magazynie!');
+        return;
+      }
+      if (checkedTypes.length === 0) {
+        alert('Zaznacz przynajmniej jeden typ uszkodzenia (Folia, Styropian lub Karton)!');
+        return;
+      }
+      if (!currentWhPhotoBase64) {
+        alert('Dodaj zdjęcie uszkodzonego opakowania!');
+        return;
+      }
+
+      warehouseDefects.push({
+        id: Date.now(),
+        time: new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }),
+        zone,
+        types: checkedTypes,
+        notes,
+        photo: currentWhPhotoBase64
+      });
+
+      document.getElementById('whZone').value = '';
+      document.getElementById('whNotes').value = '';
+      document.querySelectorAll('input[name="damageType"]').forEach(cb => cb.checked = false);
+      document.getElementById('whPhotoInput').value = '';
+      document.getElementById('whPhotoPreview').style.display = 'none';
+      document.getElementById('whUploadPrompt').style.display = 'block';
+      currentWhPhotoBase64 = null;
+
+      renderWarehouseList();
+      if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.changed();
+    }
+
+    function removeWarehouseDefect(id) {
+      if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.deleted('warehouse', id);
+      warehouseDefects = warehouseDefects.filter(item => item.id !== id);
+      renderWarehouseList();
+      if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.changed();
+    }
+
+    function renderWarehouseList() {
+      const listEl = document.getElementById('whList');
+      document.getElementById('whCount').textContent = warehouseDefects.length;
+
+      if (warehouseDefects.length === 0) {
+        listEl.innerHTML = `<p style="color: var(--text-muted); font-size: 0.85rem; text-align: center; padding: 14px;">Brak zgłoszonych uszkodzeń w tej sesji.</p>`;
+        return;
+      }
+
+      listEl.innerHTML = warehouseDefects.map((item, idx) => `
+        <div class="defect-item">
+          <img src="${item.photo}" alt="Uszkodzenie">
+          <div>
+            <div style="font-weight: 700; font-size: 0.95rem;">#${idx + 1} | Pole: ${item.zone} <span style="font-weight:400; color:var(--text-muted); font-size:0.75rem;">(${item.time})</span></div>
+            <div>${item.types.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+            ${item.notes ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">${item.notes}</div>` : ''}
+          </div>
+          <button class="btn-danger-sm" onclick="removeWarehouseDefect(${item.id})">Usuń</button>
+        </div>
+      `).join('');
+    }
+
+    function renderLoadingSlots() {
+      ['grid-docs', 'grid-trailer', 'grid-packages'].forEach(groupId => {
+        document.getElementById(groupId).innerHTML = '';
+      });
+
+      loadingSlotsConfig.forEach(slot => {
+        const hasPhoto = Boolean(loadingPhotos[slot.id]);
+        const container = document.getElementById(slot.group);
+
+        const slotEl = document.createElement('div');
+        slotEl.className = `photo-slot ${hasPhoto ? 'filled' : ''}`;
+        slotEl.innerHTML = `
+          <div class="slot-label">${slot.label}</div>
+          <input type="file" accept="image/*" capture="environment" onchange="handleSlotPhoto('${slot.id}', this)">
+          ${hasPhoto ? `
+            <img src="${loadingPhotos[slot.id]}" class="slot-img" style="display:block;">
+            <button class="slot-remove" style="display:block;" onclick="removeSlotPhoto(event, '${slot.id}')">✕</button>
+          ` : `
+            <div style="font-size: 1.5rem; margin-top: 8px;">📷</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">Dodaj zdjęcie</div>
+          `}
+        `;
+        container.appendChild(slotEl);
+      });
+
+      updateLoadingProgress();
+    }
+
+    function handleSlotPhoto(slotId, inputEl) {
+      if (inputEl.files && inputEl.files[0]) {
+        compressImage(inputEl.files[0], (base64) => {
+          loadingPhotos[slotId] = base64;
+          renderLoadingSlots();
+          if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.slotChanged(slotId);
+        });
+      }
+    }
+
+    function removeSlotPhoto(event, slotId) {
+      event.stopPropagation();
+      delete loadingPhotos[slotId];
+      renderLoadingSlots();
+      if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.slotChanged(slotId);
+    }
+
+    function updateLoadingProgress() {
+      const count = Object.keys(loadingPhotos).length;
+      const total = loadingSlotsConfig.length;
+      const percent = Math.round((count / total) * 100);
+
+      const extraDefectsInfo = loadingDefects.length > 0 ? ` (+${loadingDefects.length} uszk.)` : '';
+      document.getElementById('loadCount').textContent = `${count}/${total}${extraDefectsInfo}`;
+      document.getElementById('loadProgressText').textContent = `${count} / ${total} zdjęć`;
+      document.getElementById('loadProgressBar').style.width = `${percent}%`;
+    }
+
+    function previewLoadingDefectPhoto(input) {
+      if (input.files && input.files[0]) {
+        compressImage(input.files[0], (base64) => {
+          currentLoadDefectPhotoBase64 = base64;
+          const preview = document.getElementById('loadDefectPhotoPreview');
+          preview.src = base64;
+          preview.style.display = 'block';
+          document.getElementById('loadDefectUploadPrompt').style.display = 'none';
+        });
+      }
+    }
+
+    function addLoadingDefect() {
+      if (!currentLoadDefectPhotoBase64) {
+        alert('Zrób lub wybierz zdjęcie uszkodzonego opakowania przed dodaniem do listy!');
+        return;
+      }
+
+      const notes = document.getElementById('loadDefectNotes').value.trim();
+      const checkedTypes = Array.from(document.querySelectorAll('input[name="loadDamageType"]:checked')).map(cb => cb.value);
+
+      loadingDefects.push({
+        id: Date.now(),
+        time: new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }),
+        types: checkedTypes.length > 0 ? checkedTypes : ['Ogólne uszkodzenie opakowania'],
+        notes,
+        photo: currentLoadDefectPhotoBase64
+      });
+
+      document.getElementById('loadDefectNotes').value = '';
+      document.querySelectorAll('input[name="loadDamageType"]').forEach(cb => cb.checked = false);
+      document.getElementById('loadDefectPhotoInput').value = '';
+      document.getElementById('loadDefectPhotoPreview').style.display = 'none';
+      document.getElementById('loadDefectUploadPrompt').style.display = 'block';
+      currentLoadDefectPhotoBase64 = null;
+
+      renderLoadingDefectsList();
+      updateLoadingProgress();
+      if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.changed();
+    }
+
+    function removeLoadingDefect(id) {
+      if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.deleted('loading', id);
+      loadingDefects = loadingDefects.filter(item => item.id !== id);
+      renderLoadingDefectsList();
+      updateLoadingProgress();
+      if (window.WarehouseSyncBridge) window.WarehouseSyncBridge.changed();
+    }
+
+    function renderLoadingDefectsList() {
+      const listEl = document.getElementById('loadDefectsList');
+      document.getElementById('loadDefectsCount').textContent = loadingDefects.length;
+
+      if (loadingDefects.length === 0) {
+        listEl.innerHTML = `<p style="color: var(--text-muted); font-size: 0.82rem; text-align: center; padding: 10px; border-top: 1px solid var(--border);">Brak zgłoszonych uszkodzeń podczas załadunku (sekcja opcjonalna).</p>`;
+        return;
+      }
+
+      listEl.innerHTML = `
+        <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+          Dodane zdjęcia uszkodzonych opakowań (${loadingDefects.length}):
+        </div>
+      ` + loadingDefects.map((item, idx) => `
+        <div class="defect-item">
+          <img src="${item.photo}" alt="Uszkodzenie przy załadunku">
+          <div>
+            <div style="font-weight: 700; font-size: 0.92rem;">Uszkodzenie #${idx + 1} <span style="font-weight:400; color:var(--text-muted); font-size:0.75rem;">(${item.time})</span></div>
+            <div>${item.types.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+            ${item.notes ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">${item.notes}</div>` : ''}
+          </div>
+          <button class="btn-danger-sm" onclick="removeLoadingDefect(${item.id})">Usuń</button>
+        </div>
+      `).join('');
+    }
+
+    function addSlideHeaderAndFooter(pptx, slide, titleText, pageLabel) {
+      slide.addText(titleText, {
+        x: 0.35, y: 0.15, w: 9.0, h: 0.45,
+        fontSize: 22, bold: true, color: '000000', fontFace: 'Arial'
+      });
+
+      slide.addShape(pptx.ShapeType.rect, {
+        x: 0.0, y: 0.65, w: 9.6, h: 0.06,
+        fill: { color: '6D84A3' }, line: { type: 'none' }
+      });
+
+      slide.addShape(pptx.ShapeType.ellipse, {
+        x: 9.05, y: 7.05, w: 0.82, h: 0.32,
+        fill: { color: 'E2E8F0' }, line: { color: 'CBD5E1', width: 1 }
+      });
+      slide.addText(pageLabel, {
+        x: 9.05, y: 7.05, w: 0.82, h: 0.32,
+        fontSize: 11, bold: true, color: '1E293B', align: 'center', valign: 'middle', fontFace: 'Arial'
+      });
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + chunkSize));
+      }
+      return btoa(binary);
+    }
+
+    function saveTextReportOnAndroid(fileName, mimeType, text) {
+      const bytes = new TextEncoder().encode(text);
+      window.Android.saveBase64File(fileName, mimeType, bytesToBase64(bytes));
+    }
+
+    function isWarehouseTabActive() {
+      return document.getElementById('tab-warehouse').classList.contains('active');
+    }
+
+    async function deliverPPTX(pptx, fileName, shareReport) {
+      if (window.Android && typeof window.Android.saveBase64File === 'function') {
+        const base64 = await pptx.write({ outputType: 'base64' });
+        const mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+        if (shareReport && typeof window.Android.shareBase64File === 'function') {
+          window.Android.shareBase64File(fileName, mimeType, base64);
+        } else {
+          window.Android.saveBase64File(fileName, mimeType, base64);
+        }
+      } else {
+        await pptx.writeFile({ fileName });
+      }
+    }
+
+    async function exportWarehousePPTXReport(shareReport) {
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_4x3';
+
+      const reportDate = new Date().toLocaleString('pl-PL');
+      const pageCount = Math.max(1, Math.ceil(warehouseDefects.length / 4));
+
+      for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+        const slide = pptx.addSlide();
+        addSlideHeaderAndFooter(
+          pptx,
+          slide,
+          'I. Warehouse Inspection',
+          `${pageIndex + 1} / ${pageCount}`
+        );
+
+        slide.addText(`Data: ${reportDate}    Liczba uszkodzeń: ${warehouseDefects.length}`, {
+          x: 0.45, y: 0.82, w: 9.0, h: 0.3,
+          fontSize: 12, color: '475569', fontFace: 'Arial'
+        });
+
+        if (warehouseDefects.length === 0) {
+          slide.addText('Brak zgłoszonych uszkodzeń magazynowych.', {
+            x: 1.0, y: 2.7, w: 8.0, h: 0.6,
+            fontSize: 20, bold: true, color: '64748B',
+            align: 'center', valign: 'middle', fontFace: 'Arial'
+          });
+          continue;
+        }
+
+        const pageDefects = warehouseDefects.slice(pageIndex * 4, (pageIndex + 1) * 4);
+        pageDefects.forEach((defect, localIndex) => {
+          const column = localIndex % 2;
+          const row = Math.floor(localIndex / 2);
+          const x = 0.45 + column * 4.75;
+          const y = 1.25 + row * 2.85;
+
+          slide.addShape(pptx.ShapeType.rect, {
+            x, y, w: 4.35, h: 2.55,
+            fill: { color: 'F8FAFC' },
+            line: { color: 'CBD5E1', width: 1 }
+          });
+
+          if (defect.photo) {
+            slide.addImage({ data: defect.photo, x: x + 0.12, y: y + 0.15, w: 1.75, h: 2.05 });
+          }
+
+          const globalIndex = pageIndex * 4 + localIndex + 1;
+          slide.addText(
+            `${globalIndex}. Pole: ${defect.zone}\nTyp: ${defect.types.join(', ')}\nGodzina: ${defect.time}\nUwagi: ${defect.notes || '-'}`,
+            {
+              x: x + 2.0, y: y + 0.18, w: 2.15, h: 2.05,
+              fontSize: 11, color: '0F172A',
+              valign: 'top', margin: 0.03, fontFace: 'Arial'
+            }
+          );
+        });
+      }
+
+      const fileName = `Warehouse_Inspection_${new Date().toISOString().slice(0, 10)}.pptx`;
+      await deliverPPTX(pptx, fileName, shareReport);
+    }
+
+    async function exportPPTXReport(shareReport = false) {
+      if (typeof PptxGenJS === 'undefined') {
+        alert('Nie udało się załadować lokalnego generatora PPTX. Uruchom aplikację ponownie.');
+        return;
+      }
+
+      if (isWarehouseTabActive()) {
+        try {
+          await exportWarehousePPTXReport(shareReport);
+        } catch (error) {
+          alert('Nie udało się wygenerować raportu magazynowego PPTX: ' + error.message);
+        }
+        return;
+      }
+
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_4x3';
+
+      const series = document.getElementById('pptxSeries').value.trim() || 'WW6000D';
+      const dateVal = document.getElementById('pptxDate').value.trim() || new Date().toLocaleDateString('en-GB');
+      const truckNo = document.getElementById('truckId').value.trim() || 'PSZ TL62';
+      const modelVal = document.getElementById('pptxModel').value.trim() || 'WW90DG6U25LEU3';
+      const qtyVal = parseInt(document.getElementById('pptxQty').value, 10) || 180;
+      const doVal = document.getElementById('pptxDO').value.trim() || '6103144704';
+      const customerVal = document.getElementById('pptxCustomer').value.trim() || 'SENA';
+      const picVal = document.getElementById('pptxPIC').value.trim() || 'Jarosław Lipski';
+      const inspectorVal = document.getElementById('pptxInspector').value.trim() || 'IBI Paweł Orzechowski';
+      const resultVal = document.getElementById('pptxResult').value || 'PASS';
+      const responsibleVal = document.getElementById('pptxResponsible').value.trim() || 'Michal Sadowski';
+      const deadlineVal = document.getElementById('pptxDeadline').value.trim() || 'Before loading';
+
+      const allDefects = [...warehouseDefects, ...loadingDefects];
+      const epsCount = allDefects.filter(d => d.types.includes('Styropian')).length;
+      const foilCount = allDefects.filter(d => d.types.includes('Folia')).length;
+      const cartonCount = allDefects.filter(d => d.types.includes('Karton')).length;
+      const rejectQty = loadingDefects.length;
+      const failureRate = qtyVal > 0 ? ((rejectQty / qtyVal) * 100).toFixed(1) : '0.0';
+
+      // SLAJD 1
+      const slide1 = pptx.addSlide();
+      addSlideHeaderAndFooter(pptx, slide1, `I . Loading inspection for  ${series} model`, '1');
+
+      slide1.addText('☐ Inspection Result', {
+        x: 0.55, y: 0.82, w: 5.0, h: 0.35,
+        fontSize: 16, color: '000000', fontFace: 'Arial'
+      });
+
+      const table1Rows = [
+        [
+          { text: '', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'Date', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'Shipment details', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'PIC', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'Inspektor', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'Defect Rate', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'Result', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } }
+        ],
+        [
+          { text: 'W/H\nWM', options: { color: '002099', bold: true, align: 'center', valign: 'middle' } },
+          { text: dateVal, options: { color: '002099', bold: true, align: 'center', valign: 'middle' } },
+          {
+            text: [
+              { text: 'Truck No. ', options: { color: '002099', bold: true } },
+              { text: `${truckNo}\n`, options: { color: '000000', bold: true } },
+              { text: 'Model – ', options: { color: '002099', bold: true } },
+              { text: `${modelVal}\n`, options: { color: '000000', bold: true } },
+              { text: "Total Q'ty – ", options: { color: '002099', bold: true } },
+              { text: `${qtyVal}\n`, options: { color: '000000', bold: true } },
+              { text: 'D/O  –     ', options: { color: '002099', bold: true } },
+              { text: `${doVal}\n`, options: { color: '000000', bold: true } },
+              { text: 'Customer – ', options: { color: '002099', bold: true } },
+              { text: `${customerVal}`, options: { color: '000000', bold: true } }
+            ],
+            options: { align: 'left', valign: 'middle' }
+          },
+          { text: picVal, options: { color: '002099', bold: true, align: 'center', valign: 'middle' } },
+          { text: inspectorVal, options: { color: '002099', bold: true, align: 'center', valign: 'middle' } },
+          {
+            text: `Inspection Q'ty: ${qtyVal}\nReject Q'ty: ${rejectQty}\nFailure rate: ${failureRate}%`,
+            options: { color: '000000', align: 'left', valign: 'middle' }
+          },
+          {
+            text: resultVal,
+            options: {
+              color: resultVal === 'PASS' ? '2E8B57' : 'DC2626',
+              bold: true, align: 'center', valign: 'middle'
+            }
+          }
+        ]
+      ];
+
+      slide1.addTable(table1Rows, {
+        x: 0.3, y: 1.22, w: 9.4,
+        colW: [0.8, 1.0, 2.55, 1.05, 1.1, 1.95, 0.95],
+        rowH: [0.45, 1.65],
+        fontSize: 10.5,
+        fontFace: 'Arial',
+        border: { pt: 1, color: 'CCCCCC' }
+      });
+
+      slide1.addText('☐ Loading Inspection', {
+        x: 0.65, y: 3.65, w: 5.0, h: 0.35,
+        fontSize: 15, color: '000000', fontFace: 'Arial'
+      });
+
+      const table2Rows = [
+        [
+          {
+            text: 'Each set\nchecked\n100%\nbefore\nloading by\nlogistic\nMembers\n\nOK',
+            options: { rowspan: 2, valign: 'middle', align: 'left', fontSize: 10 }
+          },
+          {
+            text: 'Prepared the car trailer(cleaned and secured)',
+            options: { valign: 'middle', align: 'left', fontSize: 10 }
+          },
+          {
+            text: 'Prepared the products to loading',
+            options: { valign: 'middle', align: 'left', fontSize: 10 }
+          },
+          {
+            text: 'Loading checklist signed by:\n▪  Truck driver\n▪  Loading team leader',
+            options: { valign: 'middle', align: 'left', fontSize: 10 }
+          }
+        ],
+        [
+          { text: '' },
+          { text: '' },
+          { text: '' }
+        ]
+      ];
+
+      slide1.addTable(table2Rows, {
+        x: 0.0, y: 4.1, w: 9.6,
+        colW: [1.05, 2.65, 3.4, 2.5],
+        rowH: [1.3, 1.95],
+        fontFace: 'Arial',
+        border: { pt: 1, color: 'CCCCCC' }
+      });
+
+      // 1) Pod "Prepared the car trailer(cleaned and secured)" -> 3 zdjęcia naczepy
+      if (loadingPhotos['trailer_1']) {
+        slide1.addImage({ data: loadingPhotos['trailer_1'], x: 1.07, y: 5.43, w: 2.61, h: 0.94 });
+      }
+      if (loadingPhotos['trailer_2']) {
+        slide1.addImage({ data: loadingPhotos['trailer_2'], x: 1.07, y: 6.39, w: 1.29, h: 0.94 });
+      }
+      if (loadingPhotos['trailer_3']) {
+        slide1.addImage({ data: loadingPhotos['trailer_3'], x: 2.39, y: 6.39, w: 1.29, h: 0.94 });
+      }
+
+      // 2) Pod "Prepared the products to loading" -> 4 zdjęcia paczek (siatka 2x2)
+      if (loadingPhotos['pkg_1']) {
+        slide1.addImage({ data: loadingPhotos['pkg_1'], x: 3.72, y: 5.43, w: 1.67, h: 0.94 });
+      }
+      if (loadingPhotos['pkg_2']) {
+        slide1.addImage({ data: loadingPhotos['pkg_2'], x: 5.41, y: 5.43, w: 1.67, h: 0.94 });
+      }
+      if (loadingPhotos['pkg_3']) {
+        slide1.addImage({ data: loadingPhotos['pkg_3'], x: 3.72, y: 6.39, w: 1.67, h: 0.94 });
+      }
+      if (loadingPhotos['pkg_4']) {
+        slide1.addImage({ data: loadingPhotos['pkg_4'], x: 5.41, y: 6.39, w: 1.67, h: 0.94 });
+      }
+
+      // 3) Pod "Loading checklist signed by..." -> 2 zdjęcia dokumentów
+      if (loadingPhotos['doc_1']) {
+        slide1.addImage({ data: loadingPhotos['doc_1'], x: 7.12, y: 5.43, w: 1.22, h: 1.90 });
+      }
+      if (loadingPhotos['doc_2']) {
+        slide1.addImage({ data: loadingPhotos['doc_2'], x: 8.36, y: 5.43, w: 1.22, h: 1.90 });
+      }
+
+      // SLAJD 2
+      const slide2 = pptx.addSlide();
+      addSlideHeaderAndFooter(pptx, slide2, `II. Loading inspection for ${series} model`, '2 / 1');
+
+      slide2.addText('☐ Inspection Details', {
+        x: 0.55, y: 0.8, w: 5.0, h: 0.35,
+        fontSize: 16, color: '000000', fontFace: 'Arial'
+      });
+
+      const detailsRows = [
+        [
+          { text: 'Responsible', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'Deadline', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } },
+          { text: 'Remark', options: { fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } }
+        ],
+        [
+          { text: responsibleVal, options: { color: '0000CC', align: 'center', valign: 'middle', fontSize: 12 } },
+          { text: deadlineVal, options: { color: '0000CC', align: 'center', valign: 'middle', fontSize: 12 } },
+          {
+            text: [
+              { text: `${epsCount} ea. Holes in the EPS\n`, options: { color: '000000' } },
+              { text: `${foilCount} ea. Holes in the foil\n`, options: { color: '000000' } },
+              { text: `0 ea. Poorly shielded power cables\n`, options: { color: '000000' } },
+              { text: `${cartonCount} ea. Holes in the cardboard\n`, options: { color: '000000' } },
+              { text: `0 ea. dirty EPS\n`, options: { color: '000000' } },
+              { text: `repackaging`, options: { color: '0000CC' } }
+            ],
+            options: { align: 'left', valign: 'middle', fontSize: 12 }
+          }
+        ]
+      ];
+
+      slide2.addTable(detailsRows, {
+        x: 0.45, y: 1.22, w: 9.1,
+        colW: [1.5, 1.8, 5.8],
+        rowH: [0.42, 1.75],
+        fontFace: 'Arial',
+        border: { pt: 1, color: 'CCCCCC' }
+      });
+
+      slide2.addText('☐ Inspection Process Packing Condition', {
+        x: 0.55, y: 3.65, w: 6.5, h: 0.35,
+        fontSize: 16, color: '000000', fontFace: 'Arial'
+      });
+
+      const packingRows1to5 = [
+        [
+          { text: 'Packing Quality', options: { colspan: 5, fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } }
+        ],
+        [
+          { text: '#1', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#2', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#3', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#4', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#5', options: { bold: true, align: 'center', valign: 'middle' } }
+        ],
+        [
+          { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: '' }
+        ]
+      ];
+
+      slide2.addTable(packingRows1to5, {
+        x: 0.65, y: 4.15, w: 8.75,
+        colW: [1.75, 1.75, 1.75, 1.75, 1.75],
+        rowH: [0.35, 0.3, 2.25],
+        fontSize: 10.5,
+        fontFace: 'Arial',
+        border: { pt: 1, color: 'CCCCCC' }
+      });
+
+      const slotPhotos1to10 = allDefects.map(d => d.photo);
+      for (let i = 0; i < 5; i++) {
+        if (slotPhotos1to10[i]) {
+          slide2.addImage({
+            data: slotPhotos1to10[i],
+            x: 0.68 + (i * 1.75),
+            y: 4.83,
+            w: 1.69,
+            h: 2.18
+          });
+        }
+      }
+
+      // SLAJD 3
+      const slide3 = pptx.addSlide();
+      addSlideHeaderAndFooter(pptx, slide3, `II. Loading inspection for ${series} model`, '3 / 1');
+
+      slide3.addText('☐ Inspection Process Packing Condition', {
+        x: 0.25, y: 0.95, w: 6.5, h: 0.35,
+        fontSize: 16, color: '000000', fontFace: 'Arial'
+      });
+
+      const packingRows6to10 = [
+        [
+          { text: 'Packing Quality', options: { colspan: 5, fill: 'EAEAEA', bold: true, align: 'center', valign: 'middle' } }
+        ],
+        [
+          { text: '#6', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#7', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#8', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#9', options: { bold: true, align: 'center', valign: 'middle' } },
+          { text: '#10', options: { bold: true, align: 'center', valign: 'middle' } }
+        ],
+        [
+          { text: '' }, { text: '' }, { text: '' }, { text: '' }, { text: '' }
+        ]
+      ];
+
+      slide3.addTable(packingRows6to10, {
+        x: 0.2, y: 2.45, w: 8.85,
+        colW: [1.77, 1.77, 1.77, 1.77, 1.77],
+        rowH: [0.55, 0.32, 2.15],
+        fontSize: 10.5,
+        fontFace: 'Arial',
+        border: { pt: 1, color: 'CCCCCC' }
+      });
+
+      for (let i = 0; i < 5; i++) {
+        if (slotPhotos1to10[i + 5]) {
+          slide3.addImage({
+            data: slotPhotos1to10[i + 5],
+            x: 0.23 + (i * 1.77),
+            y: 3.35,
+            w: 1.71,
+            h: 2.08
+          });
+        }
+      }
+
+      const fileName = `Loading_Inspection_${series}_${new Date().toISOString().slice(0, 10)}.pptx`;
+      try {
+        await deliverPPTX(pptx, fileName, shareReport);
+      } catch (error) {
+        alert('Nie udało się wygenerować raportu PPTX: ' + error.message);
+      }
+    }
+
+    function exportHTMLReport() {
+      const dateStr = new Date().toLocaleString('pl-PL');
+      const truckId = document.getElementById('truckId').value.trim() || 'Nie podano';
+
+      const whRows = warehouseDefects.length > 0 ? warehouseDefects.map((d, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td><strong>${d.zone}</strong><br><small>${d.time}</small></td>
+          <td>${d.types.join(', ')}</td>
+          <td>${d.notes || '-'}</td>
+          <td><img src="${d.photo}" style="max-width:220px; border-radius:6px;"></td>
+        </tr>
+      `).join('') : `<tr><td colspan="5" style="text-align:center;">Brak zgłoszonych uszkodzeń magazynowych</td></tr>`;
+
+      const loadCards = loadingSlotsConfig.map(slot => {
+        const img = loadingPhotos[slot.id];
+        return `
+          <div style="border:1px solid #ccc; border-radius:8px; padding:10px; text-align:center;">
+            <div style="font-weight:bold; margin-bottom:8px; font-size:13px;">${slot.label}</div>
+            ${img ? `<img src="${img}" style="width:100%; height:180px; object-fit:cover; border-radius:6px;">` : `<div style="height:180px; display:flex; align-items:center; justify-content:center; color:#999; background:#f5f5f5; border-radius:6px;">BRAK ZDJĘCIA</div>`}
+          </div>
+        `;
+      }).join('');
+
+      const loadDefectRows = loadingDefects.length > 0 ? loadingDefects.map((d, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${d.time}</td>
+          <td>${d.types.join(', ')}</td>
+          <td>${d.notes || '-'}</td>
+          <td><img src="${d.photo}" style="max-width:220px; border-radius:6px;"></td>
+        </tr>
+      `).join('') : `<tr><td colspan="5" style="text-align:center;">Brak zgłoszonych uszkodzeń opakowań podczas załadunku</td></tr>`;
+
+      const warehouseOnly = isWarehouseTabActive();
+      const loadingSectionHtml = warehouseOnly ? '' : `
+  <h2>2. Loading Inspection – Zdjęcia wymagane (Nr załadunku / TIR: ${truckId})</h2>
+  <div class="grid">${loadCards}</div>
+
+  <h3>2.1. Uszkodzone opakowania wykryte podczas załadunku (Opcjonalne: ${loadingDefects.length})</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Lp.</th>
+        <th>Godzina</th>
+        <th>Typ uszkodzenia</th>
+        <th>Opis / Uwagi</th>
+        <th>Zdjęcie</th>
+      </tr>
+    </thead>
+    <tbody>${loadDefectRows}</tbody>
+  </table>`;
+
+      const reportHtml = `<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Raport Inspekcji - ${dateStr}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; color: #1e293b; max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3 { border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top: 28px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; vertical-align: middle; }
+    th { background: #f1f5f9; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+  </style>
+</head>
+<body>
+  <h1>📦 ${warehouseOnly ? 'Raport Warehouse Inspection' : 'Raport Kontroli Opakowań i Załadunku Pralek'}</h1>
+  <p><strong>Data wygenerowania:</strong> ${dateStr}</p>
+
+  <h2>1. Warehouse Inspection (Uszkodzenia na magazynie: ${warehouseDefects.length})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Lp.</th>
+        <th>Pole magazynowe</th>
+        <th>Typ uszkodzenia</th>
+        <th>Uwagi</th>
+        <th>Zdjęcie</th>
+      </tr>
+    </thead>
+    <tbody>${whRows}</tbody>
+  </table>
+
+  ${loadingSectionHtml}
+</body>
+</html>`;
+
+      const filePrefix = warehouseOnly ? 'Warehouse_Inspection' : 'Raport_Inspekcji_WM';
+      const fileName = `${filePrefix}_${new Date().toISOString().slice(0,10)}.html`;
+      if (window.Android && typeof window.Android.saveBase64File === 'function') {
+        saveTextReportOnAndroid(fileName, 'text/html; charset=utf-8', reportHtml);
+      } else {
+        const blob = new Blob([reportHtml], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    }
+  </script>
+  <script src="../sentinel-sync.js"></script>
+  <script src="sentinel-adapter.js"></script>
+</body>
+</html>
